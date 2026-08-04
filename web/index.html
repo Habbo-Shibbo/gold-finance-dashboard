@@ -162,6 +162,44 @@ body.pick #pickbar { display: flex; }
   background: var(--plane); padding: 2px 6px; border-radius: 4px;
 }
 
+/* 意見輸入框 */
+#notebox {
+  position: fixed; z-index: 60; display: none; width: 340px;
+  background: var(--surface); border: 1px solid var(--series);
+  border-radius: 10px; padding: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.28);
+}
+#notebox.on { display: block; }
+#notebox .tgt {
+  font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #fff; background: var(--series);
+  padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 8px;
+}
+#notebox textarea {
+  width: 100%; min-height: 68px; resize: vertical;
+  font: inherit; font-size: 14px; color: var(--ink);
+  background: var(--plane); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px;
+}
+#notebox textarea:focus { outline: 2px solid var(--series); outline-offset: -1px; }
+#notebox .actions {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+#notecount {
+  background: var(--series); color: #fff; border: none;
+  font-size: 12px; font-weight: 600;
+}
+#notecount:hover { filter: brightness(1.1); }
+#notelist {
+  margin-top: 10px; display: none; border-top: 1px solid var(--border);
+  padding-top: 10px; max-height: 260px; overflow-y: auto;
+}
+#notelist.on { display: block; }
+#notelist .n { display: flex; gap: 8px; padding: 5px 0; font-size: 13px; align-items: baseline; }
+#notelist .n code {
+  font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink-2); flex: none;
+}
+
 footer { color: var(--muted); font-size: 12px; margin-top: 8px; }
 footer code { font-size: 11px; }
 .err { color: var(--down); }
@@ -174,8 +212,10 @@ footer code { font-size: 11px; }
     <h1>財經 Dashboard</h1>
     <span class="stamp" id="stamp"></span>
     <span class="spacer"></span>
+    <button id="notecount" style="display:none"></button>
     <button id="btn-all">重新抓取全部</button>
   </header>
+  <div id="notelist"></div>
 
   <section class="card hero" id="hero" data-id="hero"></section>
   <section class="grid-2" id="dealers"></section>
@@ -186,9 +226,18 @@ footer code { font-size: 11px; }
 
 <div id="pickbar">
   <span>指點模式</span>
-  <span class="sub">點任一區塊複製它的代號</span>
+  <span class="sub">點任一區塊寫意見</span>
   <span id="pickmsg"></span>
   <span class="sub">按 <code>D</code> 離開</span>
+</div>
+
+<div id="notebox">
+  <span class="tgt" id="note-target"></span>
+  <textarea id="note-text" placeholder="這一塊想怎麼改？例如：圖太矮，拉高一點"></textarea>
+  <div class="actions">
+    <button id="note-send">送出</button>
+    <span class="sub">⌘↵ 送出 · Esc 取消</span>
+  </div>
 </div>
 
 <script src="data.js"></script>
@@ -532,27 +581,101 @@ document.addEventListener("keydown", e => {
   pickmsg.textContent = "";
 }, true);
 
+/* 點一個區塊 → 就地開輸入框寫意見，不用切回聊天視窗 */
+const notebox = document.getElementById("notebox");
+const noteText = document.getElementById("note-text");
+const noteTarget = document.getElementById("note-target");
+let currentTarget = null;
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+
+function openNote(el) {
+  currentTarget = el.dataset.id;
+  noteTarget.textContent = currentTarget;
+  noteText.value = "";
+  notebox.classList.add("on");
+
+  // position:fixed，所以直接用視窗座標，不跟捲動耦合。
+  // 上下界都要夾：視窗寬度在版面計算中途可能短暫是 0，
+  // 只做 Math.min 會把框推到畫面外（left 變成負的）。
+  const r = el.getBoundingClientRect();
+  const W = window.innerWidth || document.documentElement.clientWidth || 360;
+  const H = window.innerHeight || document.documentElement.clientHeight || 400;
+  const box = notebox.getBoundingClientRect();
+  const pad = 8;
+
+  const fitsBelow = r.bottom + box.height + pad < H;
+  const top = fitsBelow ? r.bottom + pad : r.top - box.height - pad;
+
+  notebox.style.left = clamp(r.left, pad, Math.max(pad, W - box.width - pad)) + "px";
+  notebox.style.top = clamp(top, pad, Math.max(pad, H - box.height - pad)) + "px";
+
+  // preventScroll：否則瀏覽器會為了讓 textarea 進入視野而捲動頁面，
+  // 把使用者剛才在看的區塊捲走。
+  noteText.focus({ preventScroll: true });
+}
+
+function closeNote() {
+  notebox.classList.remove("on");
+  currentTarget = null;
+}
+
+async function sendNote() {
+  const text = noteText.value.trim();
+  if (!text || !currentTarget) return closeNote();
+  const target = currentTarget;
+  try {
+    const r = await fetch("/api/note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, text, ts: new Date().toISOString() }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "送出失敗");
+    pickmsg.innerHTML = `已記下 <code>${target}</code>`;
+    closeNote();
+    loadNotes();
+  } catch (err) {
+    alert("送不出去：" + err.message + "\n本機伺服器沒開的話，先跑 python3 scripts/serve.py");
+  }
+}
+
+document.getElementById("note-send").onclick = sendNote;
+noteText.addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.stopPropagation(); closeNote(); }
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendNote(); }
+});
+
 document.addEventListener("click", e => {
   if (!document.body.classList.contains("pick")) return;
+  if (e.target.closest("#notebox") || e.target.closest("#pickbar")) return;
   const el = e.target.closest("[data-id]");
   if (!el) return;
   e.preventDefault();
   e.stopPropagation();
-  const id = el.dataset.id;
-  // 剪貼簿在非安全來源可能不可用，失敗就退回選取文字讓使用者自己複製
-  const done = ok => {
-    pickmsg.innerHTML = ok
-      ? `已複製 <code>${id}</code>`
-      : `<code>${id}</code>（請手動複製）`;
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(id).then(() => done(true), () => done(false));
-  } else {
-    done(false);
-  }
+  openNote(el);
 }, true);
 
+/* 待處理意見的計數與清單 */
+async function loadNotes() {
+  let j;
+  try {
+    j = await (await fetch("/api/notes")).json();
+  } catch { return; }
+  const open = j.open || [];
+  const btn = document.getElementById("notecount");
+  btn.textContent = open.length ? `${open.length} 則意見待處理` : "沒有待處理意見";
+  btn.style.display = "";
+  const list = document.getElementById("notelist");
+  list.innerHTML = open.map(n =>
+    `<div class="n"><code>${n.target}</code><span>${n.text.replace(/</g, "&lt;")}</span></div>`
+  ).join("") || '<div class="sub">目前沒有</div>';
+}
+document.getElementById("notecount").onclick = () =>
+  document.getElementById("notelist").classList.toggle("on");
+
 render();
+loadNotes();
 </script>
 </body>
 </html>

@@ -158,3 +158,19 @@ footer                              頁尾來源列
 
 在 `~/Claude/finance-dashboard` 底下開 Claude Code session 的話，`.claude/launch.json`
 會讓預覽面板直接連上 <http://127.0.0.1:8787>。
+
+### 直接在 dashboard 上寫意見
+
+按 `D` 進指點模式後，**點任一區塊會就地跳出輸入框**，直接把想改的地方打進去，
+`⌘↵` 送出、`Esc` 取消。不用切回聊天視窗、不用截圖、不用自己描述是哪一塊。
+
+意見存在 `data/notes.jsonl`，右上角會顯示「N 則意見待處理」，點開可以看清單。
+
+累積幾則之後跟 AI 說一聲，它讀 `data/notes.jsonl` 就知道要改哪裡。改完把該筆
+`status` 設成 `done`：
+
+```bash
+curl -X POST http://127.0.0.1:8787/api/note-done -H 'Content-Type: application/json' -d '{"id":3}'
+```
+
+API：`POST /api/note`（新增）、`GET /api/notes`（列出）、`POST /api/note-done`（標記完成）。

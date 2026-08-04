@@ -48,7 +48,64 @@ def run_script(name, extra=()):
         _lock.release()
 
 
+NOTES = ROOT / "data" / "notes.jsonl"
+
+
+def read_notes():
+    if not NOTES.exists():
+        return []
+    out = []
+    for line in NOTES.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+def add_note(target, text, ts):
+    NOTES.parent.mkdir(parents=True, exist_ok=True)
+    existing = read_notes()
+    note = {
+        "id": max([n.get("id", 0) for n in existing] or [0]) + 1,
+        "ts": ts,
+        "target": target,
+        "text": text,
+        "status": "open",
+    }
+    with NOTES.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(note, ensure_ascii=False) + "\n")
+    return note
+
+
+def set_status(note_id, status):
+    notes = read_notes()
+    hit = False
+    for n in notes:
+        if n.get("id") == note_id:
+            n["status"] = status
+            hit = True
+    if hit:
+        NOTES.write_text(
+            "".join(json.dumps(n, ensure_ascii=False) + "\n" for n in notes),
+            encoding="utf-8",
+        )
+    return hit
+
+
 class Handler(SimpleHTTPRequestHandler):
+    def _body(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        if not n:
+            return {}
+        try:
+            return json.loads(self.rfile.read(n).decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return {}
+
     def _json(self, code, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
@@ -57,7 +114,36 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_GET(self):
+        if self.path == "/api/notes":
+            notes = read_notes()
+            self._json(200, {
+                "ok": True,
+                "open": [n for n in notes if n.get("status") == "open"],
+                "all": notes,
+            })
+            return
+        super().do_GET()
+
     def do_POST(self):
+        if self.path == "/api/note":
+            b = self._body()
+            text = (b.get("text") or "").strip()
+            target = (b.get("target") or "?").strip()
+            if not text:
+                self._json(400, {"ok": False, "error": "意見是空的"})
+                return
+            note = add_note(target, text, b.get("ts") or "")
+            print(f"[意見 #{note['id']}] {target}: {text}", flush=True)
+            self._json(200, {"ok": True, "note": note})
+            return
+
+        if self.path == "/api/note-done":
+            b = self._body()
+            ok = set_status(b.get("id"), "done")
+            self._json(200 if ok else 404, {"ok": ok})
+            return
+
         if self.path == "/api/refresh-truney":
             # --refresh 只在這裡出現：使用者按了按鈕才會重載 truney 分頁。
             code, payload = run_script("truney_read.py", ["--refresh"])
