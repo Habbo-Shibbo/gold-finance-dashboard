@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+
+# fetch_daily.py 每次跑都會重寫，不進版控
+web/data.js
+
+# 抓下來的資料與 log。全部可以用 fetch_daily.py 重新抓回來，
+# 每天都會變動，進版控只會製造雜訊。
+#
+# 例外：data/dealers_log.csv 是逐日累積的幣商報價，重抓不回來。
+# 目前沒有用到（金幣只看當下數字、不畫線），所以一併忽略；
+# 哪天想留這段歷史，把下面那行的 dealers_log 排除掉即可。
+data/*.csv
+data/*.json
+data/*.log
+!data/.gitkeep
