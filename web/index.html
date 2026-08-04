@@ -526,9 +526,11 @@ document.addEventListener("keydown", e => {
   if (e.key !== "d" && e.key !== "D") return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  // 擋掉瀏覽器或擴充功能（Vimium 等）對 d 的預設行為
+  e.preventDefault();
   document.body.classList.toggle("pick");
   pickmsg.textContent = "";
-});
+}, true);
 
 document.addEventListener("click", e => {
   if (!document.body.classList.contains("pick")) return;
