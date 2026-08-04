@@ -132,6 +132,36 @@ a.tile {
 a.tile:hover { border-color: var(--axis); }
 a.tile .arrow { color: var(--muted); font-size: 20px; }
 
+/* 指點模式 ---------------------------------------------------------- */
+body.pick [data-id] { cursor: crosshair; }
+body.pick [data-id]:hover {
+  outline: 2px solid var(--series);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+body.pick [data-id]:hover::after {
+  content: attr(data-id);
+  position: absolute; z-index: 40;
+  transform: translate(4px, -100%);
+  background: var(--series); color: #fff;
+  font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+  pointer-events: none;
+}
+body.pick [data-id] { position: relative; }
+#pickbar {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  z-index: 50; display: none; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 14px; font-size: 13px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.22);
+}
+body.pick #pickbar { display: flex; }
+#pickbar code {
+  font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--plane); padding: 2px 6px; border-radius: 4px;
+}
+
 footer { color: var(--muted); font-size: 12px; margin-top: 8px; }
 footer code { font-size: 11px; }
 .err { color: var(--down); }
@@ -140,18 +170,25 @@ footer code { font-size: 11px; }
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header data-id="header">
     <h1>財經 Dashboard</h1>
     <span class="stamp" id="stamp"></span>
     <span class="spacer"></span>
     <button id="btn-all">重新抓取全部</button>
   </header>
 
-  <section class="card hero" id="hero"></section>
+  <section class="card hero" id="hero" data-id="hero"></section>
   <section class="grid-2" id="dealers"></section>
   <section id="metrics" class="wrap" style="gap:16px; padding:0;"></section>
   <section class="grid-2" id="heatmaps"></section>
-  <footer id="foot"></footer>
+  <footer id="foot" data-id="footer"></footer>
+</div>
+
+<div id="pickbar">
+  <span>指點模式</span>
+  <span class="sub">點任一區塊複製它的代號</span>
+  <span id="pickmsg"></span>
+  <span class="sub">按 <code>D</code> 離開</span>
 </div>
 
 <script src="data.js"></script>
@@ -284,9 +321,10 @@ function lineChart(points, fmt) {
 }
 
 /* ---------- 區塊 ---------- */
-function metricBlock(title, series, fmt, note) {
+function metricBlock(key, title, series, fmt, note) {
   const card = document.createElement("section");
   card.className = "card";
+  card.dataset.id = "metric:" + key;
   const pts = series && series.points || [];
   const last = pts[pts.length - 1];
   const prev = pts[pts.length - 2];
@@ -307,10 +345,11 @@ function metricBlock(title, series, fmt, note) {
     </div>`;
   const charts = document.createElement("div");
   charts.className = "charts";
-  [["近 1 個月", "1M"], ["近 3 個月", "3M"]].forEach(([lab, key]) => {
+  [["近 1 個月", "1M"], ["近 3 個月", "3M"]].forEach(([lab, win]) => {
     const col = document.createElement("div");
+    col.dataset.id = `chart:${key}:${win}`;
     col.innerHTML = `<h4>${lab}</h4>`;
-    col.appendChild(lineChart(series && series[key], fmt));
+    col.appendChild(lineChart(series && series[win], fmt));
     charts.appendChild(col);
   });
   card.appendChild(charts);
@@ -372,6 +411,7 @@ function render() {
 
   const cgCard = document.createElement("div");
   cgCard.className = "card";
+  cgCard.dataset.id = "card:canadagold";
   cgCard.innerHTML = `
     <div class="label">Canada Gold 賣價</div>
     <div class="price">${cg ? cad(cg.sell_cad) : "—"}</div>
@@ -385,6 +425,7 @@ function render() {
 
   const trCard = document.createElement("div");
   trCard.className = "card";
+  trCard.dataset.id = "card:truney";
   const h = tr ? hoursSince(tr.page_loaded_at) : null;
   const cls = !tr ? "bad" : (h != null && h > 20 ? "stale" : "ok");
   const rawErr = (D.truney && D.truney.error) || "";
@@ -417,13 +458,13 @@ function render() {
   const m = document.getElementById("metrics");
   m.innerHTML = "";
   const S = D.series || {};
-  m.appendChild(metricBlock("金價現貨（LBMA 上午定盤）", S.gold, v => usd(v), "USD / 盎司"));
+  m.appendChild(metricBlock("gold", "金價現貨（LBMA 上午定盤）", S.gold, v => usd(v), "USD / 盎司"));
   const two = document.createElement("div");
   two.className = "grid-2";
-  two.appendChild(metricBlock("0050", S.tw0050, v => "NT$" + nf(v, 2), "台股 ETF"));
-  two.appendChild(metricBlock("VOO", S.voo, v => usd(v), "S&P 500 ETF"));
+  two.appendChild(metricBlock("tw0050", "0050", S.tw0050, v => "NT$" + nf(v, 2), "台股 ETF"));
+  two.appendChild(metricBlock("voo", "VOO", S.voo, v => usd(v), "S&P 500 ETF"));
   m.appendChild(two);
-  m.appendChild(metricBlock("CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "每日累積"));
+  m.appendChild(metricBlock("fx", "CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "每日累積"));
 
   /* 熱力圖連結 */
   const hm = document.getElementById("heatmaps");
@@ -431,6 +472,7 @@ function render() {
   (D.heatmaps || []).forEach(h => {
     const a = document.createElement("a");
     a.className = "card tile";
+    a.dataset.id = "heatmap:" + (h.sub || "");
     a.href = h.url; a.target = "_blank"; a.rel = "noopener noreferrer";
     a.innerHTML = `<span><span class="label">${h.label}</span><br><span class="sub">${h.sub} · 在新分頁開啟</span></span><span class="arrow">↗</span>`;
     hm.appendChild(a);
@@ -476,6 +518,37 @@ function wireButtons() {
 }
 document.getElementById("btn-all").onclick = e =>
   post("/api/refresh-all", e.currentTarget, "抓取中…");
+
+/* ---------- 指點模式：按 D 開啟，點任一區塊複製它的代號 ---------- */
+const pickmsg = document.getElementById("pickmsg");
+
+document.addEventListener("keydown", e => {
+  if (e.key !== "d" && e.key !== "D") return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  document.body.classList.toggle("pick");
+  pickmsg.textContent = "";
+});
+
+document.addEventListener("click", e => {
+  if (!document.body.classList.contains("pick")) return;
+  const el = e.target.closest("[data-id]");
+  if (!el) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = el.dataset.id;
+  // 剪貼簿在非安全來源可能不可用，失敗就退回選取文字讓使用者自己複製
+  const done = ok => {
+    pickmsg.innerHTML = ok
+      ? `已複製 <code>${id}</code>`
+      : `<code>${id}</code>（請手動複製）`;
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(id).then(() => done(true), () => done(false));
+  } else {
+    done(false);
+  }
+}, true);
 
 render();
 </script>

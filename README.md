@@ -134,3 +134,27 @@ web/            index.html + data.js（data.js 由 fetch_daily.py 產生，不�
   在 `fetch_daily.py` 的 `fetch_all()` 裡 `merge_series()`，再到 `build_data_js()` 的
   `series` 加一行、`index.html` 的 `render()` 加一個 `metricBlock()`。
 - **圖表視窗**：`fetch_daily.py` 的 `WINDOWS`，單位是日曆天（不是筆數）。
+
+## 指點模式（要改版面的時候用）
+
+在 dashboard 上按 **`D`**，畫面進入指點模式：滑過任何區塊會描邊並顯示它的代號，
+點下去就把代號複製到剪貼簿。再按一次 `D` 離開。
+
+目前可指點的 19 個區塊：
+
+```
+header                              頁首（標題、時間戳、重新抓取按鈕）
+hero                                台加價差
+card:canadagold  card:truney        兩張幣商卡
+metric:gold      chart:gold:1M      chart:gold:3M
+metric:tw0050    chart:tw0050:1M    chart:tw0050:3M
+metric:voo       chart:voo:1M       chart:voo:3M
+metric:fx        chart:fx:1M        chart:fx:3M
+heatmap:nstock   heatmap:finviz     兩張熱力圖連結卡
+footer                              頁尾來源列
+```
+
+代號直接貼給 AI 就能精確指定要改哪一塊，不用截圖。
+
+在 `~/Claude/finance-dashboard` 底下開 Claude Code session 的話，`.claude/launch.json`
+會讓預覽面板直接連上 <http://127.0.0.1:8787>。
