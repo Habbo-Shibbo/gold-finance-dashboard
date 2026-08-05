@@ -55,12 +55,12 @@
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  padding: 24px 20px 56px;
+  padding: 24px 28px 56px;
   background: var(--plane);
   color: var(--ink);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px; }
+.wrap { max-width: min(1800px, 100%); margin: 0 auto; display: grid; gap: 16px; }
 
 header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
@@ -82,7 +82,7 @@ button:disabled { opacity: .5; cursor: progress; }
   border-radius: var(--radius);
   padding: 18px 20px;
 }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
 @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
 
 .label { font-size: 13px; color: var(--ink-2); }
@@ -99,7 +99,16 @@ button:disabled { opacity: .5; cursor: progress; }
 /* dealer cards ------------------------------------------------------ */
 .price { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; margin: 6px 0 0; }
 .alt   { font-size: 15px; color: var(--ink-2); margin-top: 2px; }
-.rowend { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+/* 兩張幣商卡的說明行數不一樣（truney 多一行），狀態列若跟著內容浮動就會
+   一高一低。卡片改成 flex column，狀態列用 auto 邊距壓到底部對齊。 */
+#dealers .card { display: flex; flex-direction: column; }
+.rowend {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: auto; padding-top: 14px; flex-wrap: wrap;
+  /* 固定高度：左卡沒有按鈕、右卡有，靠內容自然高度會差一截，
+     兩張卡的狀態列就一高一低。給定高度才會真正對齊。 */
+  height: 46px; box-sizing: content-box;
+}
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .dot.ok    { background: var(--up); }
 .dot.stale { background: var(--warn); }
