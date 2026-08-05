@@ -110,10 +110,7 @@ button:disabled { opacity: .5; cursor: progress; }
 .metric-head .now { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
 /* 亮黃色在淺色底上對比只有 1.79:1，小字大字都不合格，
    所以淺色模式改用同色系的深琥珀，深色模式才用亮黃。 */
-.metric-head .label.accent {
-  font-size: 26px; font-weight: 650; letter-spacing: -0.01em;
-  color: #a86a00;
-}
+.metric-head .label.accent { color: #a06400; }  /* 淺色模式：13px 一般文字要 4.5:1，#a86a00 只有 4.33 */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .metric-head .label.accent { color: #fab219; }
 }
@@ -548,10 +545,10 @@ function render() {
   m.innerHTML = "";
   const S = D.series || {};
   const THREE = [["近 1 個月", "1M"], ["近 3 個月", "3M"], ["近 1 年", "1Y"]];
-  m.appendChild(metricBlock("gold", "金價現貨（LBMA 上午定盤）", S.gold, v => usd(v), "USD / 盎司", THREE));
+  m.appendChild(metricBlock("gold", "金價現貨（LBMA 上午定盤）", S.gold, v => usd(v), "USD / 盎司", THREE, true));
   m.appendChild(metricBlock("tw0050", "0050", S.tw0050, v => "NT$" + nf(v, 2), "台股 ETF", THREE, true));
   m.appendChild(metricBlock("voo", "VOO", S.voo, v => usd(v), "S&P 500 ETF", THREE, true));
-  m.appendChild(metricBlock("fx", "CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "加拿大央行", THREE));
+  m.appendChild(metricBlock("fx", "CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "加拿大央行", THREE, true));
 
   /* 熱力圖連結 */
   const hm = document.getElementById("heatmaps");
