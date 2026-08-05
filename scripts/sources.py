@@ -35,6 +35,7 @@ BOC_URL = "https://www.bankofcanada.ca/valet/observations/FXCADTWD/json"
 GOLD_SPOT_URL = "https://api.gold-api.com/price/XAU"
 FX_LIVE_URL = "https://api.fxratesapi.com/latest"
 VOO_LIVE_URL = "https://stockanalysis.com/api/quotes/s/voo"
+SP500_PE_URL = "https://www.multpl.com/s-p-500-pe-ratio"
 
 
 MONTHS = {m: i + 1 for i, m in enumerate(
@@ -385,6 +386,33 @@ def fetch_canadagold_live():
         },
         meta,
     )
+
+
+def fetch_sp500_pe():
+    """S&P 500 整體本益比。
+
+    multpl.com 是這個序列最常被引用的公開來源，每個交易日更新，頁面上
+    帶有自己的時間戳。歷史值在頁面上拿不到，所以只能從今天開始累積。
+    """
+    html = _get(SP500_PE_URL, timeout=25)
+    m = re.search(r"Current<span[^>]*>[^<]*</span>:</b>\s*([0-9.]+)", html)
+    if not m:
+        raise SourceError("multpl 頁面結構改了，找不到目前的本益比")
+    stamp = re.search(r'id="timestamp"[^>]*>(.*?)</div>', html, re.S)
+    return (
+        {
+            "pe": float(m.group(1)),
+            "as_of": " ".join(stamp.group(1).split()) if stamp else None,
+        },
+        {"source": "multpl.com", "url": SP500_PE_URL},
+    )
+
+
+def fetch_tw0050_pe():
+    """0050 本益比。證交所不提供 ETF 本益比，這是自行計算的，見 tw_index_pe.py。"""
+    import tw_index_pe
+    d = tw_index_pe.compute()
+    return d, {"source": "自行計算（證交所個股資料）", "url": tw_index_pe.PERATIO}
 
 
 def fetch_fx_live():

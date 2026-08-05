@@ -155,6 +155,23 @@ def fetch_all():
         merge_series("voo", rows)
         print(f"  VOO         {rows[-1][0]}  US${rows[-1][1]:,.2f}  ({len(rows)} 筆)")
 
+    # 本益比：兩邊都沒有公開的歷史序列，只能從今天開始累積
+    sp = run_source(status, "sp500_pe", sources.fetch_sp500_pe)
+    if sp:
+        d, _ = sp
+        merge_series("pe_sp500", [(today_str(), d["pe"])])
+        (DATA / "sp500_pe.json").write_text(
+            json.dumps({**d, "ts": now_iso()}, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  S&P500 PE   {d['pe']:.2f}  ({d.get('as_of') or ''})")
+
+    tw = run_source(status, "tw0050_pe", sources.fetch_tw0050_pe)
+    if tw:
+        d, _ = tw
+        merge_series("pe_tw0050", [(today_str(), round(d["pe"], 4))])
+        (DATA / "tw0050_pe.json").write_text(
+            json.dumps({**d, "ts": now_iso()}, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  0050 PE     {d['pe']:.2f}  （自行計算，涵蓋率 {d['coverage']*100:.1f}%）")
+
     # 匯率：歷史用加拿大央行，今天的即時值另外補
     fxh = run_source(status, "fx_history", sources.fetch_fx_history)
     if fxh:
@@ -219,11 +236,17 @@ def build_data_js():
         "canadagold": canadagold,
         "tw0050_intraday": load_json(DATA / "tw0050_intraday.json"),
         "truney": truney,
+        "pe": {
+            "tw0050": load_json(DATA / "tw0050_pe.json"),
+            "sp500": load_json(DATA / "sp500_pe.json"),
+        },
         "series": {
             "gold": series_for_web("gold"),
             "tw0050": series_for_web("tw0050"),
             "voo": series_for_web("voo"),
             "fx_cadtwd": series_for_web("fx_cadtwd"),
+            "pe_tw0050": series_for_web("pe_tw0050"),
+            "pe_sp500": series_for_web("pe_sp500"),
         },
         "status": status,
         "heatmaps": [

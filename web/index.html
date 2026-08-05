@@ -147,6 +147,11 @@ svg { display: block; width: 100%; height: 132px; overflow: visible; touch-actio
 }
 .tip .t-d { color: var(--muted); font-size: 11px; }
 
+/* 本益比 */
+.pe .v { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; margin: 6px 0 2px; }
+.pe .why { font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 10px; }
+.pe .why b { color: var(--ink-2); font-weight: 600; }
+
 /* heatmap links ----------------------------------------------------- */
 a.tile {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -257,6 +262,7 @@ footer code { font-size: 11px; }
   <section class="card hero" id="hero" data-id="hero"></section>
   <section class="grid-2" id="dealers"></section>
   <section id="metrics" class="stack"></section>
+  <section class="grid-2" id="pe"></section>
   <section class="grid-2" id="heatmaps"></section>
   <footer id="foot" data-id="footer"></footer>
 </div>
@@ -590,6 +596,57 @@ function render() {
   m.appendChild(metricBlock("tw0050", "0050", S.tw0050, v => "NT$" + nf(v, 2), "台股 ETF", THREE, true));
   m.appendChild(metricBlock("voo", "VOO", S.voo, v => usd(v), "S&P 500 ETF", THREE, true));
   m.appendChild(metricBlock("fx", "CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "加拿大央行", THREE, true));
+
+  /* 本益比：兩邊都沒有公開歷史序列，只能從今天累積，所以圖表等資料夠了才出現 */
+  const peBox = document.getElementById("pe");
+  peBox.innerHTML = "";
+  const PE = D.pe || {};
+  const peCards = [
+    { key: "pe_tw0050", id: "pe:tw0050", title: "0050 本益比",
+      value: PE.tw0050 && PE.tw0050.pe,
+      note: PE.tw0050
+        ? `<b>自行計算，非官方值。</b>證交所只公布個股本益比、不含 ETF。
+           取市值前 ${PE.tw0050.constituents} 大，以總市值 ÷ 總盈餘計算；
+           納入 ${PE.tw0050.counted} 檔，市值涵蓋 ${(PE.tw0050.coverage * 100).toFixed(1)}%。
+           成分股以市值排名近似，未做自由流通調整。`
+        : "尚未計算" },
+    { key: "pe_sp500", id: "pe:sp500", title: "S&P 500 本益比",
+      value: PE.sp500 && PE.sp500.pe,
+      note: PE.sp500
+        ? `來源 multpl.com，市場整體本益比。<br>資料時點：${PE.sp500.as_of || "—"}`
+        : "尚未取得" },
+  ];
+
+  peCards.forEach(c => {
+    const el = document.createElement("div");
+    el.className = "card pe";
+    el.dataset.id = c.id;
+    const pts = (S[c.key] && S[c.key].points) || [];
+    el.innerHTML = `
+      <div class="label accent">${c.title}</div>
+      <div class="v">${c.value != null ? nf(c.value, 2) : "—"}</div>
+      <div class="why">${c.note}</div>`;
+    if (pts.length >= 2) {
+      const wrapEl = document.createElement("div");
+      wrapEl.className = "charts";
+      wrapEl.style.gridTemplateColumns = "1fr 1fr";
+      [["近 1 個月", "1M"], ["近 3 個月", "3M"]].forEach(([lab, win]) => {
+        const col = document.createElement("div");
+        col.dataset.id = `chart:${c.key}:${win}`;
+        col.innerHTML = `<h4>${lab}</h4>`;
+        col.appendChild(lineChart(S[c.key][win], v => nf(v, 2)));
+        wrapEl.appendChild(col);
+      });
+      el.appendChild(wrapEl);
+    } else {
+      const n = document.createElement("div");
+      n.className = "sub";
+      n.style.marginTop = "10px";
+      n.textContent = `走勢從今天開始累積（目前 ${pts.length} 天）`;
+      el.appendChild(n);
+    }
+    peBox.appendChild(el);
+  });
 
   /* 熱力圖連結 */
   const hm = document.getElementById("heatmaps");
