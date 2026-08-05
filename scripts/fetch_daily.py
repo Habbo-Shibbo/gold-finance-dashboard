@@ -26,7 +26,7 @@ TRUNEY_FILE = DATA / "truney.json"
 STATUS_FILE = DATA / "status.json"
 
 # 圖表視窗（日曆天）
-WINDOWS = {"1M": 30, "3M": 91}
+WINDOWS = {"1M": 30, "3M": 91, "1Y": 365}
 
 
 # ---------------------------------------------------------------- CSV 讀寫
@@ -127,11 +127,27 @@ def fetch_all():
         merge_series("gold", rows)
         print(f"  金價        {rows[-1][0]}  US${rows[-1][1]:,.2f}/oz  ({len(rows)} 筆)")
 
-    tw = run_source(status, "tw0050", sources.fetch_0050)
+    # 過去月份的收盤價不會再變，把已經齊全的月份告訴抓取端，讓它跳過
+    existing_tw = read_series("tw0050")
+    counts = {}
+    for d in existing_tw:
+        counts[d[:7]] = counts.get(d[:7], 0) + 1
+    complete = frozenset(m for m, n in counts.items() if n >= 15)
+    tw = run_source(status, "tw0050", lambda: sources.fetch_0050(have_months=complete))
     if tw:
         rows, _ = tw
-        merge_series("tw0050", rows)
-        print(f"  0050        {rows[-1][0]}  NT${rows[-1][1]:,.2f}  ({len(rows)} 筆)")
+        merged = merge_series("tw0050", rows)
+        print(f"  0050        新增 {len(rows)} 筆，累計 {len(merged)} 筆")
+
+    # 盤中報價：台股開盤時間看 dashboard，盤後資料還停在昨天
+    rt = run_source(status, "tw0050_intraday", sources.fetch_0050_intraday)
+    if rt:
+        quote, _ = rt
+        quote["fetched_at"] = now_iso()
+        (DATA / "tw0050_intraday.json").write_text(
+            json.dumps(quote, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  0050 盤中   {quote['date']} {quote['time']}  "
+              f"NT${quote['price']:,.2f}  ({quote['change_pct']:+.2f}%)")
 
     voo = run_source(status, "voo", sources.fetch_voo)
     if voo:
@@ -201,6 +217,7 @@ def build_data_js():
         "generated_at": now_iso(),
         "fx_cadtwd": fx_rate,
         "canadagold": canadagold,
+        "tw0050_intraday": load_json(DATA / "tw0050_intraday.json"),
         "truney": truney,
         "series": {
             "gold": series_for_web("gold"),

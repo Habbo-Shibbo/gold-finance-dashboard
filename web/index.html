@@ -370,7 +370,7 @@ function lineChart(points, fmt) {
 }
 
 /* ---------- 區塊 ---------- */
-function metricBlock(key, title, series, fmt, note) {
+function metricBlock(key, title, series, fmt, note, windows) {
   const card = document.createElement("section");
   card.className = "card";
   card.dataset.id = "metric:" + key;
@@ -387,14 +387,16 @@ function metricBlock(key, title, series, fmt, note) {
   card.innerHTML = `
     <div class="metric-head">
       <span class="label">${title}</span>
-      <span class="now">${last ? fmt(last.v) : "—"}</span>
-      ${delta}
+      <span class="now" data-role="now">${last ? fmt(last.v) : "—"}</span>
+      <span data-role="delta">${delta}</span>
+      <span class="sub" data-role="asof">${last ? last.d + " 收盤" : ""}</span>
       <span class="spacer"></span>
       <span class="sub">${note || ""}</span>
     </div>`;
   const charts = document.createElement("div");
   charts.className = "charts";
-  [["近 1 個月", "1M"], ["近 3 個月", "3M"]].forEach(([lab, win]) => {
+  charts.style.gridTemplateColumns = `repeat(${(windows || [0, 0]).length}, 1fr)`;
+  (windows || [["近 1 個月", "1M"], ["近 3 個月", "3M"]]).forEach(([lab, win]) => {
     const col = document.createElement("div");
     col.dataset.id = `chart:${key}:${win}`;
     col.innerHTML = `<h4>${lab}</h4>`;
@@ -507,11 +509,12 @@ function render() {
   const m = document.getElementById("metrics");
   m.innerHTML = "";
   const S = D.series || {};
+  const THREE = [["近 1 個月", "1M"], ["近 3 個月", "3M"], ["近 1 年", "1Y"]];
   m.appendChild(metricBlock("gold", "金價現貨（LBMA 上午定盤）", S.gold, v => usd(v), "USD / 盎司"));
   const two = document.createElement("div");
   two.className = "grid-2";
-  two.appendChild(metricBlock("tw0050", "0050", S.tw0050, v => "NT$" + nf(v, 2), "台股 ETF"));
-  two.appendChild(metricBlock("voo", "VOO", S.voo, v => usd(v), "S&P 500 ETF"));
+  two.appendChild(metricBlock("tw0050", "0050", S.tw0050, v => "NT$" + nf(v, 2), "台股 ETF", THREE));
+  two.appendChild(metricBlock("voo", "VOO", S.voo, v => usd(v), "S&P 500 ETF", THREE));
   m.appendChild(two);
   m.appendChild(metricBlock("fx", "CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "每日累積"));
 
@@ -673,6 +676,40 @@ async function loadNotes() {
 }
 document.getElementById("notecount").onclick = () =>
   document.getElementById("notelist").classList.toggle("on");
+
+/* ---------- 0050 盤中即時價 ----------
+   證交所的 STOCK_DAY 是盤後資料，台股開盤時間它還停在昨天的收盤。
+   頁面自己輪詢即時報價，這樣打開就是當下的價格。               */
+function applyIntraday(q) {
+  const card = document.querySelector('[data-id="metric:tw0050"]');
+  if (!card || !q) return;
+  const now = card.querySelector('[data-role="now"]');
+  const delta = card.querySelector('[data-role="delta"]');
+  const asof = card.querySelector('[data-role="asof"]');
+  if (!now) return;
+
+  const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD
+  const isToday = q.date === today;
+  const cls = q.change >= 0 ? "up" : "down";
+
+  now.textContent = "NT$" + nf(q.price, 2);
+  delta.innerHTML =
+    `<span class="${cls}">${q.change >= 0 ? "▲" : "▼"} NT$${nf(Math.abs(q.change), 2)} ` +
+    `(${q.change_pct >= 0 ? "+" : "−"}${Math.abs(q.change_pct).toFixed(2)}%)</span>`;
+  asof.textContent = isToday ? `盤中 ${q.time || ""}` : `${q.date} 收盤`;
+  asof.style.color = isToday ? "var(--up)" : "";
+}
+
+async function pollIntraday() {
+  try {
+    const j = await (await fetch("/api/intraday")).json();
+    if (j.ok) applyIntraday(j.quote);
+  } catch { /* 伺服器沒開就維持盤後數字，不要吵使用者 */ }
+}
+
+pollIntraday();
+setInterval(() => { if (!document.hidden) pollIntraday(); }, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollIntraday(); });
 
 render();
 loadNotes();

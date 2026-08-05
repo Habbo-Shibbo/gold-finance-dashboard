@@ -174,3 +174,28 @@ curl -X POST http://127.0.0.1:8787/api/note-done -H 'Content-Type: application/j
 ```
 
 API：`POST /api/note`（新增）、`GET /api/notes`（列出）、`POST /api/note-done`（標記完成）。
+
+## 盤中即時價
+
+證交所的 `STOCK_DAY` 是**盤後**資料 —— 台股 09:00–13:30 交易時間內，它給的還是
+昨天的收盤價。早上看 dashboard 會誤以為那是「現在」。
+
+所以 0050 另外接了證交所的**盤中即時報價**：
+
+```
+https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_0050.tw&json=1&delay=0
+```
+
+這是證交所自家 MIS 行情系統的公開端點（`mis.twse.com.tw` 就是「基本市況報導網站」
+背後那支 API）。要帶 `Referer: https://mis.twse.com.tw/stock/fibest.jsp`，不然會被擋。
+
+頁面每 30 秒輪詢一次（分頁在背景時暫停），所以打開 dashboard 看到的就是當下的價格。
+標題旁邊會標「盤中 HH:MM:SS」並轉成綠色；非交易時間則顯示「YYYY-MM-DD 收盤」。
+
+兩個實作細節：
+
+- 成交價欄位 `z` 在**兩筆撮合之間會回傳 `-`**。這時改用最佳買賣價（`b`/`a`，
+  底線串接的五檔）的中間值。所以極少數情況下看到的是買賣中價而不是成交價。
+- 非交易日完全沒有報價時退回昨收，並照實顯示那天的日期。
+
+圖表用的仍然是盤後收盤價，只有標題那個大數字是即時的 —— 當天的 K 線要等收盤才進 CSV。

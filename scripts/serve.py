@@ -18,6 +18,9 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sources  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
 PY = sys.executable or "python3"
@@ -115,6 +118,15 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path == "/api/intraday":
+            # 頁面一開就打這支，這樣看到的 0050 是當下的價格而不是昨天的收盤
+            try:
+                quote, _ = sources.fetch_0050_intraday()
+                self._json(200, {"ok": True, "quote": quote})
+            except Exception as e:
+                self._json(200, {"ok": False, "error": f"{type(e).__name__}: {e}"})
+            return
+
         if self.path == "/api/notes":
             notes = read_notes()
             self._json(200, {
