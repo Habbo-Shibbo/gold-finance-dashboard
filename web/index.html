@@ -60,7 +60,10 @@ body {
   color: var(--ink);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-.wrap { max-width: min(1320px, 100%); margin: 0 auto; display: grid; gap: 16px; }
+.wrap { max-width: min(1040px, 100%); margin: 0 auto; display: grid; gap: 16px; }
+/* #metrics 原本也掛 .wrap，變成巢狀。grid 項目一旦帶 auto 邊距就會收縮成
+   內容寬度而不是撐滿，導致它比其他區塊窄。改用不帶寬度限制的 stack。 */
+.stack { display: grid; gap: 16px; }
 
 header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
@@ -253,7 +256,7 @@ footer code { font-size: 11px; }
 
   <section class="card hero" id="hero" data-id="hero"></section>
   <section class="grid-2" id="dealers"></section>
-  <section id="metrics" class="wrap" style="gap:16px; padding:0;"></section>
+  <section id="metrics" class="stack"></section>
   <section class="grid-2" id="heatmaps"></section>
   <footer id="foot" data-id="footer"></footer>
 </div>
