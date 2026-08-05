@@ -205,10 +205,24 @@ body.pick #pickbar { display: flex; }
   padding-top: 10px; max-height: 260px; overflow-y: auto;
 }
 #notelist.on { display: block; }
-#notelist .n { display: flex; gap: 8px; padding: 5px 0; font-size: 13px; align-items: baseline; }
+#notelist .n {
+  display: grid; grid-template-columns: 62px 150px 1fr auto;
+  gap: 10px; padding: 6px 0; font-size: 13px; align-items: baseline;
+  border-bottom: 1px solid var(--border);
+}
+#notelist .n:last-child { border-bottom: none; }
 #notelist .n code {
   font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--ink-2); flex: none;
+  color: var(--ink-2);
+}
+#notelist .st { font-size: 11px; font-weight: 600; }
+#notelist .st.open { color: var(--warn); }
+#notelist .st.done { color: var(--up); }
+#notelist .n.done .tx { color: var(--muted); }
+#notelist .when { font-size: 11px; color: var(--muted); white-space: nowrap; }
+#notelist .hint {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); line-height: 1.6;
 }
 
 footer { color: var(--muted); font-size: 12px; margin-top: 8px; }
@@ -682,9 +696,11 @@ async function sendNote() {
     });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || "送出失敗");
-    pickmsg.innerHTML = `已記下 <code>${target}</code>`;
+    pickmsg.innerHTML = `已送出 <code>${target}</code>`;
     closeNote();
-    loadNotes();
+    await loadNotes();
+    // 送出後把清單攤開，讓使用者看到它確實躺在待處理裡，而不是閃一下就消失
+    document.getElementById("notelist").classList.add("on");
   } catch (err) {
     alert("送不出去：" + err.message + "\n本機伺服器沒開的話，先跑 python3 scripts/serve.py");
   }
@@ -712,14 +728,39 @@ async function loadNotes() {
   try {
     j = await (await fetch("/api/notes")).json();
   } catch { return; }
+  const all = j.all || [];
   const open = j.open || [];
   const btn = document.getElementById("notecount");
-  btn.textContent = open.length ? `${open.length} 則意見待處理` : "沒有待處理意見";
+  btn.textContent = open.length ? `${open.length} 則意見待處理` : "意見紀錄";
+  btn.style.background = open.length ? "var(--warn)" : "var(--surface)";
+  btn.style.color = open.length ? "#0b0b0b" : "var(--ink)";
+  btn.style.border = open.length ? "none" : "1px solid var(--border)";
   btn.style.display = "";
+
+  const esc = t => t.replace(/</g, "&lt;");
+  const when = ts => {
+    if (!ts) return "";
+    const d = new Date(ts);
+    return isNaN(d) ? "" : d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false });
+  };
   const list = document.getElementById("notelist");
-  list.innerHTML = open.map(n =>
-    `<div class="n"><code>${n.target}</code><span>${n.text.replace(/</g, "&lt;")}</span></div>`
-  ).join("") || '<div class="sub">目前沒有</div>';
+  const rows = all.slice().reverse().map(n => {
+    const done = n.status === "done";
+    return `<div class="n ${done ? "done" : ""}">
+      <span class="st ${done ? "done" : "open"}">${done ? "已處理" : "待處理"}</span>
+      <code>${esc(n.target)}</code>
+      <span class="tx">${esc(n.text)}</span>
+      <span class="when">${when(n.ts)}</span>
+    </div>`;
+  }).join("");
+
+  list.innerHTML = (rows || '<div class="sub">還沒有任何意見</div>') + `
+    <div class="hint">
+      意見存在 <code>data/notes.jsonl</code>。<b>AI 不會自己發現它們</b> ——
+      它只在你送訊息時才會執行。寫完之後回聊天視窗說一聲「看一下意見」即可，
+      處理完這裡會變成「已處理」。
+    </div>`;
 }
 document.getElementById("notecount").onclick = () =>
   document.getElementById("notelist").classList.toggle("on");
