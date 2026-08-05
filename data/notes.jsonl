@@ -1,7 +1,7 @@
 {"id": 1, "ts": "2026-08-05T03:36:45.768Z", "target": "metric:tw0050", "text": "加一個一年的趨勢圖", "status": "done"}
 {"id": 2, "ts": "2026-08-05T03:36:54.618Z", "target": "metric:voo", "text": "加一個一年的趨勢圖", "status": "done"}
-{"id": 3, "ts": "2026-08-05T03:37:44.565Z", "target": "metric:tw0050", "text": "0050用高亮黃色顯示，字體再大一點", "status": "open"}
-{"id": 4, "ts": "2026-08-05T03:37:58.532Z", "target": "metric:voo", "text": "VOO用高光黃色顯示，字體再大一點", "status": "open"}
-{"id": 5, "ts": "2026-08-05T03:40:25.207Z", "target": "hero", "text": "[台灣貴....]這個字體可以小一點", "status": "open"}
-{"id": 6, "ts": "2026-08-05T03:40:47.678Z", "target": "metric:tw0050", "text": "0050跟VOO都單獨放一行，現在這樣太擠了", "status": "open"}
-{"id": 7, "ts": "2026-08-05T03:43:02.572Z", "target": "metric:fx", "text": "這個也加一個近一年的圖。", "status": "open"}
+{"id": 3, "ts": "2026-08-05T03:37:44.565Z", "target": "metric:tw0050", "text": "0050用高亮黃色顯示，字體再大一點", "status": "done"}
+{"id": 4, "ts": "2026-08-05T03:37:58.532Z", "target": "metric:voo", "text": "VOO用高光黃色顯示，字體再大一點", "status": "done"}
+{"id": 5, "ts": "2026-08-05T03:40:25.207Z", "target": "hero", "text": "[台灣貴....]這個字體可以小一點", "status": "done"}
+{"id": 6, "ts": "2026-08-05T03:40:47.678Z", "target": "metric:tw0050", "text": "0050跟VOO都單獨放一行，現在這樣太擠了", "status": "done"}
+{"id": 7, "ts": "2026-08-05T03:43:02.572Z", "target": "metric:fx", "text": "這個也加一個近一年的圖。", "status": "done"}
