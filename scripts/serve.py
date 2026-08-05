@@ -118,13 +118,20 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/api/intraday":
-            # 頁面一開就打這支，這樣看到的 0050 是當下的價格而不是昨天的收盤
-            try:
-                quote, _ = sources.fetch_0050_intraday()
-                self._json(200, {"ok": True, "quote": quote})
-            except Exception as e:
-                self._json(200, {"ok": False, "error": f"{type(e).__name__}: {e}"})
+        if self.path in ("/api/live", "/api/intraday"):
+            # 頁面一開就打這支，這樣看到的是當下的價格而不是昨天的收盤。
+            # 單一來源掛掉不影響其他兩個。
+            quotes, errors = {}, {}
+            for key, fn in (
+                ("tw0050", sources.fetch_0050_intraday),
+                ("gold", sources.fetch_gold_spot),
+                ("fx_cadtwd", sources.fetch_fx_live),
+            ):
+                try:
+                    quotes[key] = fn()[0]
+                except Exception as e:
+                    errors[key] = f"{type(e).__name__}: {e}"
+            self._json(200, {"ok": bool(quotes), "quotes": quotes, "errors": errors})
             return
 
         if self.path == "/api/notes":

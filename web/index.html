@@ -346,6 +346,7 @@ function lineChart(points, fmt, liveLast) {
     const lp = document.createElementNS(svgns, "circle");
     lp.setAttribute("cx", x(li));
     lp.setAttribute("cy", y(points[li].v));
+    lp.setAttribute("class", "livedot");   // 跟 hover 用的圓點區分開
     lp.setAttribute("r", "3.5");
     lp.setAttribute("fill", "var(--series)");
     lp.setAttribute("stroke", "var(--surface)");
@@ -443,6 +444,8 @@ function metricBlock(key, title, series, fmt, note, windows, accent) {
     });
   };
   card._draw(null);
+  card._last = last || null;
+  card._fmt = fmt;
   return card;
 }
 
@@ -464,8 +467,12 @@ function render() {
   const cgTwd = cg && fx ? cg.sell_cad * fx : null;
   const trCad = tr && fx ? tr.sell_twd / fx : null;
 
-  /* HERO：同一枚金幣，兩邊差多少 */
+  /* HERO：同一枚金幣，兩邊差多少。匯率會被即時值覆蓋，所以包成函式重算。 */
   const hero = document.getElementById("hero");
+  window.drawHero = (rate, live) => {
+  const fx = rate || D.fx_cadtwd;
+  const cgTwd = cg && fx ? cg.sell_cad * fx : null;
+  const trCad = tr && fx ? tr.sell_twd / fx : null;
   if (cgTwd != null && tr) {
     const diff = tr.sell_twd - cgTwd;
     const pc = (diff / cgTwd) * 100;
@@ -476,7 +483,7 @@ function render() {
         ${cheaperTW ? "台灣便宜" : "台灣貴"} ${twd(Math.abs(diff))}
         <span style="font-size:17px">(${pc >= 0 ? "+" : "−"}${Math.abs(pc).toFixed(1)}%)</span>
       </div>
-      <div class="sub">換算匯率 CAD/TWD ${fx ? fx.toFixed(4) : "—"}</div>
+      <div class="sub">換算匯率 CAD/TWD ${fx ? fx.toFixed(4) : "—"}${live ? "（即時）" : ""}</div>
       <div class="legs">
         <div class="leg"><div class="sub">台灣 truney</div><div class="v">${twd(tr.sell_twd)}</div></div>
         <div class="leg"><div class="sub">加拿大 Canada Gold</div><div class="v">${twd(cgTwd)}</div></div>
@@ -494,6 +501,8 @@ function render() {
       <div class="sub">${tr ? "" : "按下面 truney 那格的「重新整理並讀取」"}</div>
       ${known}`;
   }
+  };
+  window.drawHero(null, false);
 
   /* 幣商兩張卡 */
   const dealers = document.getElementById("dealers");
@@ -713,12 +722,17 @@ async function loadNotes() {
 document.getElementById("notecount").onclick = () =>
   document.getElementById("notelist").classList.toggle("on");
 
-/* ---------- 0050 盤中即時價 ----------
-   證交所的 STOCK_DAY 是盤後資料，台股開盤時間它還停在昨天的收盤。
-   頁面自己輪詢即時報價，這樣打開就是當下的價格。               */
-function applyIntraday(q) {
-  const card = document.querySelector('[data-id="metric:tw0050"]');
-  if (!card || !q) return;
+/* ---------- 即時報價 ----------
+   三個來源的共同問題：走勢資料都是「收盤／定盤」，看的當下已經落後。
+     0050  盤後 STOCK_DAY 停在昨天 → 證交所盤中報價
+     金價  LBMA 一天一次定盤，實測跟現貨差到 2% → gold-api 現貨
+     匯率  日更 API 固定在 00:02 UTC → fxratesapi 每分鐘
+   拿到的值同時更新標題與折線圖的最後一點，末端畫一個實心點表示未定案。 */
+const LIVE_KEYS = { tw0050: "metric:tw0050", gold: "metric:gold", fx_cadtwd: "metric:fx" };
+
+function applyLive(key, q) {
+  const card = document.querySelector(`[data-id="${LIVE_KEYS[key]}"]`);
+  if (!card || !q || !q.price) return;
   const now = card.querySelector('[data-role="now"]');
   const delta = card.querySelector('[data-role="delta"]');
   const asof = card.querySelector('[data-role="asof"]');
@@ -726,29 +740,39 @@ function applyIntraday(q) {
 
   const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD
   const isToday = q.date === today;
-  const cls = q.change >= 0 ? "up" : "down";
+  const fmt = card._fmt || (v => v);
 
-  now.textContent = "NT$" + nf(q.price, 2);
-  delta.innerHTML =
-    `<span class="${cls}">${q.change >= 0 ? "▲" : "▼"} NT$${nf(Math.abs(q.change), 2)} ` +
-    `(${q.change_pct >= 0 ? "+" : "−"}${Math.abs(q.change_pct).toFixed(2)}%)</span>`;
-  asof.textContent = isToday ? `盤中 ${q.time || ""}` : `${q.date} 收盤`;
+  // 基準：0050 有證交所給的昨收，其他兩個用序列裡最後一個收盤點
+  const base = q.prev_close != null ? q.prev_close
+             : (card._last ? card._last.v : null);
+
+  now.textContent = fmt(q.price);
+  if (base) {
+    const dv = q.price - base, pc = dv / base * 100;
+    delta.innerHTML = `<span class="${dv >= 0 ? "up" : "down"}">${dv >= 0 ? "▲" : "▼"} ` +
+      `${fmt(Math.abs(dv))} (${pc >= 0 ? "+" : "−"}${Math.abs(pc).toFixed(2)}%)</span>`;
+  }
+  asof.textContent = isToday
+    ? `${q.kind || "即時"} ${q.time || ""}`
+    : `${q.date || ""} 收盤`;
   asof.style.color = isToday ? "var(--up)" : "";
 
-  // 把今天的即時價接成折線圖的最後一點，否則標題說漲、圖卻往下
   if (card._draw) card._draw(isToday ? { d: q.date, v: q.price } : null);
+
+  // 匯率換了，台加價差要跟著重算，否則 HERO 還在用日更的舊匯率
+  if (key === "fx_cadtwd" && isToday && window.drawHero) window.drawHero(q.price, true);
 }
 
-async function pollIntraday() {
+async function pollLive() {
   try {
-    const j = await (await fetch("/api/intraday")).json();
-    if (j.ok) applyIntraday(j.quote);
-  } catch { /* 伺服器沒開就維持盤後數字，不要吵使用者 */ }
+    const j = await (await fetch("/api/live")).json();
+    Object.keys(j.quotes || {}).forEach(k => applyLive(k, j.quotes[k]));
+  } catch { /* 伺服器沒開就維持收盤數字，不要吵使用者 */ }
 }
 
-pollIntraday();
-setInterval(() => { if (!document.hidden) pollIntraday(); }, 30000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) pollIntraday(); });
+pollLive();
+setInterval(() => { if (!document.hidden) pollLive(); }, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollLive(); });
 
 render();
 loadNotes();

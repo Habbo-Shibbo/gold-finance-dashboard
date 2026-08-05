@@ -32,6 +32,8 @@ TWSE_RT_URL = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
 VOO_URL = "https://stockanalysis.com/api/symbol/s/voo/history?range=1Y&period=Daily"
 FX_URL = "https://open.er-api.com/v6/latest/CAD"
 BOC_URL = "https://www.bankofcanada.ca/valet/observations/FXCADTWD/json"
+GOLD_SPOT_URL = "https://api.gold-api.com/price/XAU"
+FX_LIVE_URL = "https://api.fxratesapi.com/latest"
 
 
 class SourceError(Exception):
@@ -253,6 +255,7 @@ def fetch_0050_intraday():
             "date": iso,
             "time": m.get("t"),
             "name": m.get("n"),
+            "kind": "盤中",
         },
         {"source": "證交所盤中報價", "url": TWSE_RT_URL},
     )
@@ -288,6 +291,50 @@ def fetch_fx_history(recent=400):
         raise SourceError("加拿大央行沒有回傳 CAD/TWD 觀測值")
     rows.sort()
     return rows, {"source": "Bank of Canada Valet", "url": url, "pair": "CAD/TWD"}
+
+
+def fetch_gold_spot():
+    """即時現貨金價。
+
+    LBMA 是一天一次的定盤價，實測跟即時現貨可以差到 2%。走勢圖用定盤價
+    （有數十年歷史），但「現在多少」要用這支。
+    """
+    d = json.loads(_get(GOLD_SPOT_URL, timeout=15))
+    price = d.get("price")
+    if not price:
+        raise SourceError("現貨金價回傳沒有 price")
+    ts = str(d.get("updatedAt") or "")
+    return (
+        {
+            "price": float(price),
+            "date": ts[:10] or None,
+            "time": ts[11:19] or None,
+            "kind": "現貨",
+        },
+        {"source": "gold-api.com", "url": GOLD_SPOT_URL, "unit": "USD/oz"},
+    )
+
+
+def fetch_fx_live():
+    """即時 CAD/TWD，每分鐘更新。
+
+    不用日更 API 的直接報價：實測 exchangerate-api 直接報 23.04，但用它
+    自己的 USD 匯率交叉算是 22.94，差 0.4%。這支跟三家交叉算出來的值一致。
+    """
+    d = json.loads(_get(f"{FX_LIVE_URL}?base=CAD&currencies=TWD", timeout=15))
+    rate = (d.get("rates") or {}).get("TWD")
+    if not rate:
+        raise SourceError("即時匯率回傳沒有 TWD")
+    ts = str(d.get("date") or "")
+    return (
+        {
+            "price": float(rate),
+            "date": ts[:10] or None,
+            "time": ts[11:19] or None,
+            "kind": "即時",
+        },
+        {"source": "fxratesapi.com", "url": FX_LIVE_URL, "pair": "CAD/TWD"},
+    )
 
 
 def fetch_fx():
