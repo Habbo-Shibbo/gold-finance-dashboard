@@ -817,12 +817,22 @@ function applyLive(key, q) {
     delta.innerHTML = `<span class="${dv >= 0 ? "up" : "down"}">${dv >= 0 ? "▲" : "▼"} ` +
       `${fmt(Math.abs(dv))} (${pc >= 0 ? "+" : "−"}${Math.abs(pc).toFixed(2)}%)</span>`;
   }
-  asof.textContent = isToday
-    ? `${q.kind || "即時"} ${q.time || ""}`
-    : `${q.date || ""} ${q.kind || "收盤"}`;
-  asof.style.color = isToday ? "var(--up)" : "";
+  // 美股非一般時段時，顯示「下次開盤是台北時間幾點」比「某日收盤」有用。
+  // next_open 由伺服器用 NYSE 日曆算出，已跳過週末與國定假日。
+  const inSession = q.market_state ? q.market_state === "regular" : isToday;
+  if (!inSession && q.next_open) {
+    asof.textContent = `開盤：台北 ${q.next_open}`;
+    asof.style.color = "";
+  } else {
+    asof.textContent = inSession
+      ? `${q.kind || "即時"} ${q.time || ""}`
+      : `${q.date || ""} ${q.kind || "收盤"}`;
+    asof.style.color = inSession ? "var(--up)" : "";
+  }
 
-  if (card._draw) card._draw(isToday ? { d: q.date, v: q.price } : null);
+  // 只有盤中的價格才掛上折線圖。盤後延長時段的成交價不該蓋掉當天已經
+  // 定案的收盤價 —— 圖是歷史，標題才是「現在」。
+  if (card._draw) card._draw(inSession ? { d: q.date, v: q.price } : null);
 
   // 匯率換了，台加價差要跟著重算，否則 HERO 還在用日更的舊匯率
   if (key === "fx_cadtwd" && isToday) { LIVE.fx = q.price; if (window.drawHero) window.drawHero(); }

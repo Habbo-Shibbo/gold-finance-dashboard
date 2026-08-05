@@ -349,13 +349,19 @@ def fetch_voo_live():
     except (ValueError, IndexError, KeyError):
         pass
 
+    import nyse_calendar
+    sess = nyse_calendar.session_state()
+
     return (
         {
             "price": price,
             "prev_close": float(d["cl"]) if d.get("cl") is not None else None,
             "date": iso,
             "time": stamp,
-            "kind": "延長時段" if use_ext else "收盤",
+            "kind": "盤中" if sess["state"] == "regular"
+                    else ("延長時段" if use_ext else "收盤"),
+            "market_state": sess["state"],
+            "next_open": sess["next_open_label"],
         },
         {"source": "stockanalysis.com", "url": VOO_LIVE_URL, "unit": "USD"},
     )
