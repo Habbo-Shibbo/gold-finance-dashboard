@@ -86,6 +86,8 @@ button:disabled { opacity: .5; cursor: progress; }
   padding: 18px 20px;
 }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+@media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
 
 .label { font-size: 13px; color: var(--ink-2); }
@@ -262,7 +264,7 @@ footer code { font-size: 11px; }
   <section class="card hero" id="hero" data-id="hero"></section>
   <section class="grid-2" id="dealers"></section>
   <section id="metrics" class="stack"></section>
-  <section class="grid-2" id="pe"></section>
+  <section class="grid-3" id="pe"></section>
   <section class="grid-2" id="heatmaps"></section>
   <footer id="foot" data-id="footer"></footer>
 </div>
@@ -601,19 +603,26 @@ function render() {
   const peBox = document.getElementById("pe");
   peBox.innerHTML = "";
   const PE = D.pe || {};
+  const calcNote = d => `<b>自行計算，非官方值。</b>以總市值 ÷ 總盈餘計算；
+      納入 ${d.counted} / ${d.constituents} 檔，市值涵蓋 ${(d.coverage * 100).toFixed(1)}%。`;
   const peCards = [
     { key: "pe_tw0050", id: "pe:tw0050", title: "0050 本益比",
       value: PE.tw0050 && PE.tw0050.pe,
       note: PE.tw0050
-        ? `<b>自行計算，非官方值。</b>證交所只公布個股本益比、不含 ETF。
-           取市值前 ${PE.tw0050.constituents} 大，以總市值 ÷ 總盈餘計算；
-           納入 ${PE.tw0050.counted} 檔，市值涵蓋 ${(PE.tw0050.coverage * 100).toFixed(1)}%。
-           成分股以市值排名近似，未做自由流通調整。`
+        ? calcNote(PE.tw0050) + `證交所的本益比不含 ETF，成分股以市值前 50 大近似，
+           未做自由流通調整。台積電一檔佔約五成，所以這是集中於半導體的估值，
+           不代表台股整體。`
+        : "尚未計算" },
+    { key: "pe_twall", id: "pe:twall", title: "台股全市場 本益比",
+      value: PE.twall && PE.twall.pe,
+      note: PE.twall
+        ? calcNote(PE.twall) + `涵蓋全部上市個股，與 S&P 500 屬同一層級，
+           兩者相比才是「台股 vs 美股」。`
         : "尚未計算" },
     { key: "pe_sp500", id: "pe:sp500", title: "S&P 500 本益比",
       value: PE.sp500 && PE.sp500.pe,
       note: PE.sp500
-        ? `來源 multpl.com，市場整體本益比。<br>資料時點：${PE.sp500.as_of || "—"}`
+        ? `來源 multpl.com，市場整體本益比，同為總量法。<br>資料時點：${PE.sp500.as_of || "—"}`
         : "尚未取得" },
   ];
 

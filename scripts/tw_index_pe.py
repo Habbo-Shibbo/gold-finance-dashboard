@@ -51,7 +51,8 @@ def _num(v):
         return None
 
 
-def compute(top_n=TOP_N):
+def load_rows():
+    """把三份官方資料併成一張表：代號、名稱、市值、本益比。"""
     prices = {r["Code"]: r for r in _get(PRICES)}
     basics = {r["公司代號"]: r for r in _get(BASIC)}
     pes = {r["Code"]: r for r in _get(PERATIO)}
@@ -68,51 +69,61 @@ def compute(top_n=TOP_N):
         rows.append({
             "code": code,
             "name": b.get("公司簡稱") or px.get("Name"),
-            "close": close,
             "cap": close * shares,
             "pe": _num((pes.get(code) or {}).get("PEratio")),
         })
-
     if not rows:
         raise RuntimeError("沒有取得任何個股資料")
-
     rows.sort(key=lambda r: r["cap"], reverse=True)
-    top = rows[:top_n]
+    date = (next(iter(pes.values()), {}) or {}).get("Date")
+    return rows, date
 
-    cap_total = sum(r["cap"] for r in top)
-    priced = [r for r in top if r["pe"] and r["pe"] > 0]
+
+def summarize(rows, date, label):
+    """總量法：Σ市值 ÷ Σ盈餘，個股盈餘 = 市值 ÷ 本益比。"""
+    cap_total = sum(r["cap"] for r in rows)
+    priced = [r for r in rows if r["pe"] and r["pe"] > 0]
     cap_priced = sum(r["cap"] for r in priced)
     earnings = sum(r["cap"] / r["pe"] for r in priced)
-
     if not earnings:
-        raise RuntimeError("納入計算的成分股盈餘總和為零")
-
-    date = (next(iter(pes.values()), {}) or {}).get("Date")
+        raise RuntimeError(f"{label}：納入計算的盈餘總和為零")
     return {
+        "label": label,
         "pe": cap_priced / earnings,
         "date": date,
-        "constituents": len(top),
+        "constituents": len(rows),
         "counted": len(priced),
         "coverage": cap_priced / cap_total,
-        "excluded": [r["name"] for r in top if r not in priced],
         "top10": [
             {"code": r["code"], "name": r["name"], "pe": r["pe"],
              "weight": r["cap"] / cap_total}
-            for r in top[:10]
+            for r in rows[:10]
         ],
-        "method": "總市值 ÷ 總盈餘（市值前 50 大近似 0050，自行計算非官方值）",
+    }
+
+
+def compute(top_n=TOP_N):
+    rows, date = load_rows()
+    return summarize(rows[:top_n], date, f"市值前 {top_n} 大")
+
+
+def compute_all():
+    """一次算出 0050 近似值與全上市市場，只抓一次資料。"""
+    rows, date = load_rows()
+    return {
+        "tw0050": summarize(rows[:TOP_N], date, f"市值前 {TOP_N} 大"),
+        "market": summarize(rows, date, "全上市市場"),
     }
 
 
 if __name__ == "__main__":
-    d = compute()
-    print(f"0050 本益比（自行計算）: {d['pe']:.2f}")
-    print(f"  資料日期: {d['date']}")
-    print(f"  成分股: 市值前 {d['constituents']} 大，納入計算 {d['counted']} 檔")
-    print(f"  市值涵蓋率: {d['coverage']*100:.1f}%")
-    if d["excluded"]:
-        print(f"  排除（無本益比）: {'、'.join(d['excluded'])}")
-    print("\n  前十大成分股:")
-    for r in d["top10"]:
+    both = compute_all()
+    for key in ("tw0050", "market"):
+        d = both[key]
+        print(f"{d['label']}  本益比 {d['pe']:.2f}")
+        print(f"  資料日期 {d['date']}   成分 {d['constituents']} 檔，"
+              f"納入 {d['counted']} 檔，市值涵蓋 {d['coverage']*100:.1f}%")
+    print("\n  前十大（市值前 50 大之中）:")
+    for r in both["tw0050"]["top10"]:
         pe = f"{r['pe']:.2f}" if r["pe"] else "－"
         print(f"    {r['code']} {r['name']:<8} 權重 {r['weight']*100:5.2f}%   PE {pe}")

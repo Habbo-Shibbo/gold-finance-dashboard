@@ -408,11 +408,16 @@ def fetch_sp500_pe():
     )
 
 
-def fetch_tw0050_pe():
-    """0050 本益比。證交所不提供 ETF 本益比，這是自行計算的，見 tw_index_pe.py。"""
+def fetch_tw_pe():
+    """台股本益比。證交所不提供 ETF 或大盤本益比，兩個都是自行計算，見 tw_index_pe.py。
+
+    回傳 {"tw0050": {...}, "market": {...}}，兩者共用同一次資料抓取。
+    """
     import tw_index_pe
-    d = tw_index_pe.compute()
-    return d, {"source": "自行計算（證交所個股資料）", "url": tw_index_pe.PERATIO}
+    return (
+        tw_index_pe.compute_all(),
+        {"source": "自行計算（證交所個股資料）", "url": tw_index_pe.PERATIO},
+    )
 
 
 def fetch_fx_live():

@@ -164,13 +164,17 @@ def fetch_all():
             json.dumps({**d, "ts": now_iso()}, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"  S&P500 PE   {d['pe']:.2f}  ({d.get('as_of') or ''})")
 
-    tw = run_source(status, "tw0050_pe", sources.fetch_tw0050_pe)
+    tw = run_source(status, "tw_pe", sources.fetch_tw_pe)
     if tw:
-        d, _ = tw
-        merge_series("pe_tw0050", [(today_str(), round(d["pe"], 4))])
-        (DATA / "tw0050_pe.json").write_text(
-            json.dumps({**d, "ts": now_iso()}, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"  0050 PE     {d['pe']:.2f}  （自行計算，涵蓋率 {d['coverage']*100:.1f}%）")
+        both, _ = tw
+        for key, fname, label in (("tw0050", "tw0050_pe.json", "0050 PE   "),
+                                  ("market", "twall_pe.json", "台股全市場PE")):
+            d = both[key]
+            merge_series(f"pe_{'tw0050' if key == 'tw0050' else 'twall'}",
+                         [(today_str(), round(d["pe"], 4))])
+            (DATA / fname).write_text(
+                json.dumps({**d, "ts": now_iso()}, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"  {label}  {d['pe']:.2f}  （自行計算，涵蓋率 {d['coverage']*100:.1f}%）")
 
     # 匯率：歷史用加拿大央行，今天的即時值另外補
     fxh = run_source(status, "fx_history", sources.fetch_fx_history)
@@ -238,6 +242,7 @@ def build_data_js():
         "truney": truney,
         "pe": {
             "tw0050": load_json(DATA / "tw0050_pe.json"),
+            "twall": load_json(DATA / "twall_pe.json"),
             "sp500": load_json(DATA / "sp500_pe.json"),
         },
         "series": {
@@ -246,6 +251,7 @@ def build_data_js():
             "voo": series_for_web("voo"),
             "fx_cadtwd": series_for_web("fx_cadtwd"),
             "pe_tw0050": series_for_web("pe_tw0050"),
+            "pe_twall": series_for_web("pe_twall"),
             "pe_sp500": series_for_web("pe_sp500"),
         },
         "status": status,
