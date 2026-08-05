@@ -5,3 +5,5 @@
 {"id": 5, "ts": "2026-08-05T03:40:25.207Z", "target": "hero", "text": "[台灣貴....]這個字體可以小一點", "status": "done"}
 {"id": 6, "ts": "2026-08-05T03:40:47.678Z", "target": "metric:tw0050", "text": "0050跟VOO都單獨放一行，現在這樣太擠了", "status": "done"}
 {"id": 7, "ts": "2026-08-05T03:43:02.572Z", "target": "metric:fx", "text": "這個也加一個近一年的圖。", "status": "done"}
+{"id": 8, "ts": "2026-08-05T03:47:15.918Z", "target": "metric:gold", "text": "這個也加一個近一年吧。", "status": "open"}
+{"id": 9, "ts": "2026-08-05T03:48:36.270Z", "target": "metric:tw0050", "text": "價格的部分有點太大了。我剛剛的意思是，0050弄大一點，然後產品名弄大一點，然後套用亮黃色，不是叫你去 highlight 價格。VOO by the way", "status": "open"}
