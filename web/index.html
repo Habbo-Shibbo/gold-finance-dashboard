@@ -469,9 +469,11 @@ function render() {
 
   /* HERO：同一枚金幣，兩邊差多少。匯率會被即時值覆蓋，所以包成函式重算。 */
   const hero = document.getElementById("hero");
-  window.drawHero = (rate, live) => {
-  const fx = rate || D.fx_cadtwd;
-  const cgTwd = cg && fx ? cg.sell_cad * fx : null;
+  window.drawHero = () => {
+  const fx = LIVE.fx || D.fx_cadtwd;
+  const live = !!LIVE.fx;
+  const cgSell = LIVE.cgSell || (cg && cg.sell_cad);
+  const cgTwd = cgSell && fx ? cgSell * fx : null;
   const trCad = tr && fx ? tr.sell_twd / fx : null;
   if (cgTwd != null && tr) {
     const diff = tr.sell_twd - cgTwd;
@@ -502,7 +504,7 @@ function render() {
       ${known}`;
   }
   };
-  window.drawHero(null, false);
+  window.drawHero();
 
   /* 幣商兩張卡 */
   const dealers = document.getElementById("dealers");
@@ -728,7 +730,14 @@ document.getElementById("notecount").onclick = () =>
      金價  LBMA 一天一次定盤，實測跟現貨差到 2% → gold-api 現貨
      匯率  日更 API 固定在 00:02 UTC → fxratesapi 每分鐘
    拿到的值同時更新標題與折線圖的最後一點，末端畫一個實心點表示未定案。 */
-const LIVE_KEYS = { tw0050: "metric:tw0050", gold: "metric:gold", fx_cadtwd: "metric:fx" };
+const LIVE_KEYS = { tw0050: "metric:tw0050", gold: "metric:gold",
+                    fx_cadtwd: "metric:fx", voo: "metric:voo" };
+// 即時值集中放這裡，HERO 的台加價差要同時用到匯率與 Canada Gold 的報價
+const LIVE = { fx: null, cgSell: null };
+// 「是不是今天」要用該市場自己的時區判斷。美股 16:00 EDT 已經是台灣的隔天
+// 凌晨，用台灣日期比對會把盤中的 VOO 誤判成舊資料。
+const LIVE_TZ = { tw0050: "Asia/Taipei", voo: "America/New_York",
+                  gold: "UTC", fx_cadtwd: "UTC" };
 
 function applyLive(key, q) {
   const card = document.querySelector(`[data-id="${LIVE_KEYS[key]}"]`);
@@ -738,7 +747,7 @@ function applyLive(key, q) {
   const asof = card.querySelector('[data-role="asof"]');
   if (!now) return;
 
-  const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: LIVE_TZ[key] || "UTC" });
   const isToday = q.date === today;
   const fmt = card._fmt || (v => v);
 
@@ -754,19 +763,33 @@ function applyLive(key, q) {
   }
   asof.textContent = isToday
     ? `${q.kind || "即時"} ${q.time || ""}`
-    : `${q.date || ""} 收盤`;
+    : `${q.date || ""} ${q.kind || "收盤"}`;
   asof.style.color = isToday ? "var(--up)" : "";
 
   if (card._draw) card._draw(isToday ? { d: q.date, v: q.price } : null);
 
   // 匯率換了，台加價差要跟著重算，否則 HERO 還在用日更的舊匯率
-  if (key === "fx_cadtwd" && isToday && window.drawHero) window.drawHero(q.price, true);
+  if (key === "fx_cadtwd" && isToday) { LIVE.fx = q.price; if (window.drawHero) window.drawHero(); }
+}
+
+function applyCanadaGold(q) {
+  const card = document.querySelector('[data-id="card:canadagold"]');
+  if (!card || !q || !q.price) return;
+  LIVE.cgSell = q.price;
+  const fx = LIVE.fx || D.fx_cadtwd;
+  card.querySelector(".price").textContent = cad(q.price);
+  card.querySelector(".alt").textContent = fx ? twd(q.price * fx) : "";
+  const stamp = card.querySelector(".rowend .sub");
+  if (stamp) { stamp.textContent = "即時 · 重新整理頁面時更新"; stamp.style.color = "var(--up)"; }
+  if (window.drawHero) window.drawHero();
 }
 
 async function pollLive() {
   try {
     const j = await (await fetch("/api/live")).json();
-    Object.keys(j.quotes || {}).forEach(k => applyLive(k, j.quotes[k]));
+    const q = j.quotes || {};
+    Object.keys(LIVE_KEYS).forEach(k => q[k] && applyLive(k, q[k]));
+    if (q.canadagold) applyCanadaGold(q.canadagold);
   } catch { /* 伺服器沒開就維持收盤數字，不要吵使用者 */ }
 }
 

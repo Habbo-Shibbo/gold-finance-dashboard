@@ -195,7 +195,17 @@ API：`POST /api/note`（新增）、`GET /api/notes`（列出）、`POST /api/n
 2. **接成折線圖的最後一點**，末端畫一個 `circle.livedot` 表示尚未定案
 3. 匯率還會回頭重算 HERO 的台加價差
 
-VOO 沒接即時（美股收盤時間跟這裡的使用時段錯開），維持前一日收盤並照實標示。
+VOO 與 Canada Gold 也接了：
+
+| 指標 | 即時來源 | 備註 |
+|---|---|---|
+| VOO | `stockanalysis.com/api/quotes/s/voo` | 有延長時段價（`ep`）就優先用，標成「延長時段」 |
+| Canada Gold | 重抓 `/buy-from-us/bullion/` | 伺服器端快取 120 秒；他們 robots 要求 Crawl-delay 10 |
+
+truney 不在即時之列，原因見上面「truney 為什麼要手動」。
+
+「是不是今天」用**該市場自己的時區**判斷（`LIVE_TZ`）。美股 16:00 EDT 已經是台灣的
+隔天凌晨，用台灣日期比對會把盤中的 VOO 誤判成舊資料。
 
 ### 為什麼匯率不用日更 API 的直接報價
 

@@ -34,6 +34,11 @@ FX_URL = "https://open.er-api.com/v6/latest/CAD"
 BOC_URL = "https://www.bankofcanada.ca/valet/observations/FXCADTWD/json"
 GOLD_SPOT_URL = "https://api.gold-api.com/price/XAU"
 FX_LIVE_URL = "https://api.fxratesapi.com/latest"
+VOO_LIVE_URL = "https://stockanalysis.com/api/quotes/s/voo"
+
+
+MONTHS = {m: i + 1 for i, m in enumerate(
+    "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split())}
 
 
 class SourceError(Exception):
@@ -312,6 +317,67 @@ def fetch_gold_spot():
             "kind": "現貨",
         },
         {"source": "gold-api.com", "url": GOLD_SPOT_URL, "unit": "USD/oz"},
+    )
+
+
+def fetch_voo_live():
+    """VOO 即時報價。
+
+    p  = 一般交易時段的最後成交價
+    cl = 前一日收盤
+    ep = 延長時段（盤前／盤後）價格，e 為 true 時才有意義
+    u  = 來源自己的時間字串，例如 "Aug 4, 2026, 4:00 PM EDT"
+
+    美股收盤後 p 就不再變動，但延長時段仍在交易，所以有 ep 就優先用 ep。
+    """
+    d = json.loads(_get(VOO_LIVE_URL, timeout=15)).get("data") or {}
+    last = d.get("p")
+    if last is None:
+        raise SourceError("VOO 即時報價沒有 p")
+
+    ext = d.get("ep")
+    use_ext = bool(d.get("e")) and isinstance(ext, (int, float)) and ext != last
+    price = float(ext if use_ext else last)
+
+    stamp = str(d.get("u") or "")
+    iso = None
+    try:
+        # "Aug 4, 2026, 4:00 PM EDT" → 2026-08-04
+        head = stamp.split(",")
+        mon, day = head[0].split()
+        iso = f"{int(head[1].strip()):04d}-{MONTHS[mon]:02d}-{int(day):02d}"
+    except (ValueError, IndexError, KeyError):
+        pass
+
+    return (
+        {
+            "price": price,
+            "prev_close": float(d["cl"]) if d.get("cl") is not None else None,
+            "date": iso,
+            "time": stamp,
+            "kind": "延長時段" if use_ext else "收盤",
+        },
+        {"source": "stockanalysis.com", "url": VOO_LIVE_URL, "unit": "USD"},
+    )
+
+
+def fetch_canadagold_live():
+    """Canada Gold 的報價本來就跟著金價走，重抓一次就是最新的。
+
+    他們的 robots.txt 是 Crawl-delay: 10，也就是每 10 秒一次的上限；
+    伺服器端另外做 120 秒快取，遠低於這個限制。
+    """
+    payload, meta = fetch_canadagold()
+    return (
+        {
+            "price": payload["sell_cad"],
+            "buy_cad": payload.get("buy_cad"),
+            "product": payload.get("product"),
+            "tier": payload.get("tier"),
+            "date": date.today().isoformat(),
+            "kind": "即時",
+        },
+        meta,
     )
 
 

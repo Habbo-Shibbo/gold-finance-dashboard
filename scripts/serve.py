@@ -14,6 +14,7 @@ import json
 import subprocess
 import sys
 import threading
+import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -49,6 +50,21 @@ def run_script(name, extra=()):
         return 504, {"ok": False, "error": "腳本執行超過 180 秒"}
     finally:
         _lock.release()
+
+
+_cache = {}
+
+
+def cached(key, fn, ttl):
+    """ttl 秒內重複呼叫直接給上次的結果。ttl=0 表示不快取。"""
+    if ttl:
+        hit = _cache.get(key)
+        if hit and (time.time() - hit[0]) < ttl:
+            return hit[1]
+    value = fn()[0]
+    if ttl:
+        _cache[key] = (time.time(), value)
+    return value
 
 
 NOTES = ROOT / "data" / "notes.jsonl"
@@ -122,13 +138,17 @@ class Handler(SimpleHTTPRequestHandler):
             # 頁面一開就打這支，這樣看到的是當下的價格而不是昨天的收盤。
             # 單一來源掛掉不影響其他兩個。
             quotes, errors = {}, {}
-            for key, fn in (
-                ("tw0050", sources.fetch_0050_intraday),
-                ("gold", sources.fetch_gold_spot),
-                ("fx_cadtwd", sources.fetch_fx_live),
+            for key, fn, ttl in (
+                ("tw0050", sources.fetch_0050_intraday, 0),
+                ("gold", sources.fetch_gold_spot, 0),
+                ("fx_cadtwd", sources.fetch_fx_live, 0),
+                ("voo", sources.fetch_voo_live, 0),
+                # canadagold 是整頁 HTML（約 50KB），而且他們的 robots 要求
+                # Crawl-delay: 10。快取 120 秒，遠低於上限也省他們的頻寬。
+                ("canadagold", sources.fetch_canadagold_live, 120),
             ):
                 try:
-                    quotes[key] = fn()[0]
+                    quotes[key] = cached(key, fn, ttl)
                 except Exception as e:
                     errors[key] = f"{type(e).__name__}: {e}"
             self._json(200, {"ok": bool(quotes), "quotes": quotes, "errors": errors})
