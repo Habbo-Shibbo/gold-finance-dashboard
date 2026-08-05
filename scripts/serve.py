@@ -190,7 +190,18 @@ class Handler(SimpleHTTPRequestHandler):
                 run_script("fetch_daily.py", ["--rebuild"])
             self._json(code, payload)
         elif self.path == "/api/refresh-all":
+            # 這是使用者按下的動作，所以連 truney 一起更新。
+            # 規則是「排程不得自動重載 truney」，不是「永遠不重載」——
+            # 使用者點一下按鈕，跟他自己按 F5 沒有差別。
             code, payload = run_script("fetch_daily.py")
+            tcode, tpayload = run_script("truney_read.py", ["--refresh"])
+            payload["truney_ok"] = bool(tpayload.get("ok"))
+            if not tpayload.get("ok"):
+                # truney 失敗不該讓整次更新算失敗，其他五個來源都拿到了
+                payload["truney_error"] = (
+                    tpayload.get("stderr") or tpayload.get("error") or "truney 更新失敗"
+                )
+            run_script("fetch_daily.py", ["--rebuild"])
             self._json(code, payload)
         else:
             self._json(404, {"ok": False, "error": "no such endpoint"})

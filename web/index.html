@@ -238,7 +238,7 @@ footer code { font-size: 11px; }
     <span class="stamp" id="stamp"></span>
     <span class="spacer"></span>
     <button id="notecount" style="display:none"></button>
-    <button id="btn-all">重新抓取全部</button>
+    <button id="btn-all" title="含 truney：會重新整理你開著的 truney 分頁">全部更新（含 truney）</button>
   </header>
   <div id="notelist"></div>
 
@@ -611,6 +611,9 @@ async function post(url, btn, working) {
   try {
     const r = await fetch(url, { method: "POST" });
     const j = await r.json().catch(() => ({}));
+    if (j.truney_ok === false && j.truney_error) {
+      alert("其他來源都更新了，但 truney 沒成功：\n" + j.truney_error);
+    }
     if (!r.ok || !j.ok) {
       btn.textContent = "失敗";
       alert((j.stderr || j.error || "失敗").trim());

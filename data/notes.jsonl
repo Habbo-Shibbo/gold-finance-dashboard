@@ -8,4 +8,4 @@
 {"id": 8, "ts": "2026-08-05T03:47:15.918Z", "target": "metric:gold", "text": "這個也加一個近一年吧。", "status": "done"}
 {"id": 9, "ts": "2026-08-05T03:48:36.270Z", "target": "metric:tw0050", "text": "價格的部分有點太大了。我剛剛的意思是，0050弄大一點，然後產品名弄大一點，然後套用亮黃色，不是叫你去 highlight 價格。VOO by the way", "status": "done"}
 {"id": 10, "ts": "2026-08-05T03:57:25.050Z", "target": "metric:tw0050", "text": "算了，你這個 0050 跟 VOO 還是弄得小一點好了，弄成跟金價現貨一樣大；然後你再把金價現貨跟 Canadian dollar per Taiwanese dollar 那邊也改成一樣的顏色，但是大小不變。", "status": "done"}
-{"id": 11, "ts": "2026-08-05T04:31:14.714Z", "target": "header", "text": "重新抓取全部包含 Truney 的賣價嗎？這樣子我 Truney 那邊就不用再點一次了。", "status": "open"}
+{"id": 11, "ts": "2026-08-05T04:31:14.714Z", "target": "header", "text": "重新抓取全部包含 Truney 的賣價嗎？這樣子我 Truney 那邊就不用再點一次了。", "status": "done"}
