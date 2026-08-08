@@ -142,6 +142,7 @@ class Handler(SimpleHTTPRequestHandler):
                 ("tw0050", sources.fetch_0050_intraday, 0),
                 ("gold", sources.fetch_gold_spot, 0),
                 ("fx_cadtwd", sources.fetch_fx_live, 0),
+                ("fx_usdtwd", sources.fetch_usdtwd_live, 0),
                 ("voo", sources.fetch_voo_live, 0),
                 # canadagold 是整頁 HTML（約 50KB），而且他們的 robots 要求
                 # Crawl-delay: 10。快取 120 秒，遠低於上限也省他們的頻寬。

@@ -32,6 +32,7 @@ TWSE_RT_URL = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
 VOO_URL = "https://stockanalysis.com/api/symbol/s/voo/history?range=1Y&period=Daily"
 FX_URL = "https://open.er-api.com/v6/latest/CAD"
 BOC_URL = "https://www.bankofcanada.ca/valet/observations/FXCADTWD/json"
+BOC_URL_MULTI = "https://www.bankofcanada.ca/valet/observations/FXUSDCAD,FXCADTWD/json"
 GOLD_SPOT_URL = "https://api.gold-api.com/price/XAU"
 FX_LIVE_URL = "https://api.fxratesapi.com/latest"
 VOO_LIVE_URL = "https://stockanalysis.com/api/quotes/s/voo"
@@ -439,6 +440,39 @@ def fetch_fx_live():
             "kind": "即時",
         },
         {"source": "fxratesapi.com", "url": FX_LIVE_URL, "pair": "CAD/TWD"},
+    )
+
+
+def fetch_usdtwd_history(recent=400):
+    """USD/TWD 歷史。
+
+    加拿大央行沒有直接的 USD/TWD，但同時提供 FXUSDCAD 與 FXCADTWD，
+    相乘即得。兩者都是官方值，而且一次呼叫就能取回。
+    """
+    url = f"{BOC_URL_MULTI}?recent={recent}"
+    payload = json.loads(_get(url))
+    rows = []
+    for obs in payload.get("observations", []):
+        u = (obs.get("FXUSDCAD") or {}).get("v")
+        c = (obs.get("FXCADTWD") or {}).get("v")
+        if u in (None, "") or c in (None, ""):
+            continue
+        rows.append((obs["d"], float(u) * float(c)))
+    if not rows:
+        raise SourceError("加拿大央行沒有回傳可推導 USD/TWD 的觀測值")
+    rows.sort()
+    return rows, {"source": "Bank of Canada（USD/CAD × CAD/TWD）", "url": url, "pair": "USD/TWD"}
+
+
+def fetch_usdtwd_live():
+    d = json.loads(_get(f"{FX_LIVE_URL}?base=USD&currencies=TWD", timeout=15))
+    rate = (d.get("rates") or {}).get("TWD")
+    if not rate:
+        raise SourceError("即時 USD/TWD 回傳沒有 TWD")
+    ts = str(d.get("date") or "")
+    return (
+        {"price": float(rate), "date": ts[:10] or None, "time": ts[11:19] or None, "kind": "即時"},
+        {"source": "fxratesapi.com", "url": FX_LIVE_URL, "pair": "USD/TWD"},
     )
 
 

@@ -183,6 +183,12 @@ def fetch_all():
         merge_series("fx_cadtwd", rows)
         print(f"  CAD/TWD 史  {rows[0][0]} ~ {rows[-1][0]}  ({len(rows)} 筆)")
 
+    ux = run_source(status, "usdtwd_history", sources.fetch_usdtwd_history)
+    if ux:
+        rows, _ = ux
+        merge_series("fx_usdtwd", rows)
+        print(f"  USD/TWD 史  {rows[0][0]} ~ {rows[-1][0]}  ({len(rows)} 筆)")
+
     fx = run_source(status, "fx", sources.fetch_fx)
     if fx:
         rate, _ = fx
@@ -250,6 +256,7 @@ def build_data_js():
             "tw0050": series_for_web("tw0050"),
             "voo": series_for_web("voo"),
             "fx_cadtwd": series_for_web("fx_cadtwd"),
+            "fx_usdtwd": series_for_web("fx_usdtwd"),
             "pe_tw0050": series_for_web("pe_tw0050"),
             "pe_twall": series_for_web("pe_twall"),
             "pe_sp500": series_for_web("pe_sp500"),

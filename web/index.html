@@ -124,11 +124,11 @@ button:disabled { opacity: .5; cursor: progress; }
 .metric-head .now { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
 /* 亮黃色在淺色底上對比只有 1.79:1，小字大字都不合格，
    所以淺色模式改用同色系的深琥珀，深色模式才用亮黃。 */
-.metric-head .label.accent { color: #a06400; }
+.metric-head .label.accent { color: #a06400; }  /* 13px 一般文字需 4.5:1；#a86a00 只有 4.33 */
 /* 名稱長度不一（「金價現貨」vs「VOO」）會讓價格左右飄，
    給一個最小寬度，四張卡的價格就落在同一條垂直線上。 */
 .metric-head .label { min-width: 92px; display: inline-block; }
-@media (max-width: 720px) { .metric-head .label { min-width: 0; } }  /* 淺色模式：13px 一般文字要 4.5:1，#a86a00 只有 4.33 */
+@media (max-width: 720px) { .metric-head .label { min-width: 0; } }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .metric-head .label.accent { color: #fab219; }
 }
@@ -598,6 +598,8 @@ function render() {
   m.appendChild(metricBlock("tw0050", "0050", S.tw0050, v => "NT$" + nf(v, 2), "台股 ETF", THREE, true));
   m.appendChild(metricBlock("voo", "VOO", S.voo, v => usd(v), "S&P 500 ETF", THREE, true));
   m.appendChild(metricBlock("fx", "CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "加拿大央行", THREE, true));
+  m.appendChild(metricBlock("usdtwd", "USD / TWD", S.fx_usdtwd, v => nf(v, 4),
+                            "加拿大央行 USD/CAD × CAD/TWD", THREE, true));
 
   /* 本益比：兩邊都沒有公開歷史序列，只能從今天累積，所以圖表等資料夠了才出現 */
   const peBox = document.getElementById("pe");
@@ -853,13 +855,14 @@ document.getElementById("notecount").onclick = () =>
      匯率  日更 API 固定在 00:02 UTC → fxratesapi 每分鐘
    拿到的值同時更新標題與折線圖的最後一點，末端畫一個實心點表示未定案。 */
 const LIVE_KEYS = { tw0050: "metric:tw0050", gold: "metric:gold",
-                    fx_cadtwd: "metric:fx", voo: "metric:voo" };
+                    fx_cadtwd: "metric:fx", voo: "metric:voo",
+                    fx_usdtwd: "metric:usdtwd" };
 // 即時值集中放這裡，HERO 的台加價差要同時用到匯率與 Canada Gold 的報價
 const LIVE = { fx: null, cgSell: null };
 // 「是不是今天」要用該市場自己的時區判斷。美股 16:00 EDT 已經是台灣的隔天
 // 凌晨，用台灣日期比對會把盤中的 VOO 誤判成舊資料。
 const LIVE_TZ = { tw0050: "Asia/Taipei", voo: "America/New_York",
-                  gold: "UTC", fx_cadtwd: "UTC" };
+                  gold: "UTC", fx_cadtwd: "UTC", fx_usdtwd: "UTC" };
 
 function applyLive(key, q) {
   const card = document.querySelector(`[data-id="${LIVE_KEYS[key]}"]`);

@@ -28,6 +28,8 @@
 | VOO | stockanalysis.com | |
 | CAD/TWD 歷史 | 加拿大央行 Valet `FXCADTWD` | 官方，會落後 2~3 個營業日 |
 | CAD/TWD 當日 | open.er-api.com | 補上央行還沒發布的今天 |
+| USD/TWD 歷史 | 加拿大央行 `FXUSDCAD × FXCADTWD` | 央行沒有直接的 USD/TWD，兩個官方序列相乘推導，一次呼叫取回 |
+| USD/TWD 即時 | api.fxratesapi.com | 與兩家日更 API 差距 0.3% 以內 |
 | truney | 你自己開的 Chrome 分頁 | 見下 |
 
 抓取邏輯在 `scripts/sources.py`，每個來源一支函式。任何一個掛掉都不影響其他來源，
