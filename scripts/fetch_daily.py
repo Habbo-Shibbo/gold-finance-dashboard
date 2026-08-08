@@ -189,6 +189,12 @@ def fetch_all():
         merge_series("fx_usdtwd", rows)
         print(f"  USD/TWD 史  {rows[0][0]} ~ {rows[-1][0]}  ({len(rows)} 筆)")
 
+    ts = run_source(status, "taishin_usd", lambda: sources.fetch_taishin_rate("USD", "即期賣出"))
+    if ts:
+        d, _ = ts
+        merge_series("fx_usdtwd_taishin", [(d.get("date") or today_str(), d["price"])])
+        print(f"  台新 USD賣出 {d['price']:.4f}  （牌告 {d.get('date')} {d.get('time') or ''}）")
+
     fx = run_source(status, "fx", sources.fetch_fx)
     if fx:
         rate, _ = fx
@@ -257,6 +263,7 @@ def build_data_js():
             "voo": series_for_web("voo"),
             "fx_cadtwd": series_for_web("fx_cadtwd"),
             "fx_usdtwd": series_for_web("fx_usdtwd"),
+            "fx_usdtwd_taishin": series_for_web("fx_usdtwd_taishin"),
             "pe_tw0050": series_for_web("pe_tw0050"),
             "pe_twall": series_for_web("pe_twall"),
             "pe_sp500": series_for_web("pe_sp500"),

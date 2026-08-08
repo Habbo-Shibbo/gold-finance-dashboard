@@ -29,7 +29,8 @@
 | CAD/TWD 歷史 | 加拿大央行 Valet `FXCADTWD` | 官方，會落後 2~3 個營業日 |
 | CAD/TWD 當日 | open.er-api.com | 補上央行還沒發布的今天 |
 | USD/TWD 歷史 | 加拿大央行 `FXUSDCAD × FXCADTWD` | 央行沒有直接的 USD/TWD，兩個官方序列相乘推導，一次呼叫取回 |
-| USD/TWD 即時 | api.fxratesapi.com | 與兩家日更 API 差距 0.3% 以內 |
+| USD/TWD 現價 | **台新銀行即期賣出** | 實際換美金要付的價格，比中間價高約 0.3% |
+| USD/TWD 走勢 | 加拿大央行推導的中間價 | 只有中間價有現成歷史；台新的值另外每日累積 |
 | truney | 你自己開的 Chrome 分頁 | 見下 |
 
 抓取邏輯在 `scripts/sources.py`，每個來源一支函式。任何一個掛掉都不影響其他來源，
@@ -283,3 +284,28 @@ S&P 500** —— 兩者都是全市場、都用總量法，層級才對等。005
 ```bash
 python3 scripts/tw_index_pe.py
 ```
+
+## 台新牌告匯率
+
+USD/TWD 的「現在」用**台新即期賣出**，不是中間價 —— 換美金實際付的是銀行賣出價。
+
+匯率頁是 JS 渲染的，原始 HTML 沒有數字。資料在：
+
+```
+https://www.taishinbank.com.tw/eServiceA/transactionrate/transactionrateExport.jsp?no=5
+```
+
+回傳一串 `document.writeln('...')`，把裡面的 HTML 還原後即可解析。兩個定位方式
+都刻意避開「靠順序」：
+
+- **幣別**用該列自帶的 `queryhistory('USD')` 定位，不靠列的順序
+- **欄位**從表頭讀出（`即期買入 / 即期賣出 / 現鈔買入 / 現鈔賣出`）再取索引，
+  台新調整欄位順序也不會抓錯
+
+頁面另有「更新時間」，一併解析出來顯示在卡片上。
+
+同一支函式也能取其他幣別與欄位，例如 `fetch_taishin_rate("CAD", "即期賣出")`。
+
+**基準不一致要注意**：卡片上的現價是台新賣出價，走勢圖仍是央行中間價（只有它有
+現成歷史）。兩者實測差約 0.3%，卡片右側已標明。台新的值從現在起每日存進
+`data/fx_usdtwd_taishin.csv`，累積夠了可以改用它畫圖。

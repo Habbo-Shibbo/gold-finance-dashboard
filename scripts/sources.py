@@ -37,6 +37,8 @@ GOLD_SPOT_URL = "https://api.gold-api.com/price/XAU"
 FX_LIVE_URL = "https://api.fxratesapi.com/latest"
 VOO_LIVE_URL = "https://stockanalysis.com/api/quotes/s/voo"
 SP500_PE_URL = "https://www.multpl.com/s-p-500-pe-ratio"
+TAISHIN_URL = ("https://www.taishinbank.com.tw/eServiceA/transactionrate/"
+               "transactionrateExport.jsp?no=5")
 
 
 MONTHS = {m: i + 1 for i, m in enumerate(
@@ -253,6 +255,13 @@ def fetch_0050_intraday():
     raw = str(m.get("d") or "")
     iso = f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}" if len(raw) == 8 else None
 
+    import tw_calendar
+    try:
+        sess = tw_calendar.session_state()
+    except Exception:
+        # 行事曆抓不到不該讓報價整支失敗，退回「不知道市場狀態」
+        sess = {"state": "unknown", "next_open_label": None, "closed_reason": None}
+
     return (
         {
             "price": price,
@@ -262,7 +271,10 @@ def fetch_0050_intraday():
             "date": iso,
             "time": m.get("t"),
             "name": m.get("n"),
-            "kind": "盤中",
+            "kind": "盤中" if sess["state"] == "regular" else "收盤",
+            "market_state": sess["state"],
+            "next_open": sess["next_open_label"],
+            "closed_reason": sess.get("closed_reason"),
         },
         {"source": "證交所盤中報價", "url": TWSE_RT_URL},
     )
@@ -464,7 +476,70 @@ def fetch_usdtwd_history(recent=400):
     return rows, {"source": "Bank of Canada（USD/CAD × CAD/TWD）", "url": url, "pair": "USD/TWD"}
 
 
+def fetch_taishin_rate(currency="USD", column="即期賣出"):
+    """台新銀行牌告匯率。
+
+    匯率頁本身是 JS 渲染的，原始 HTML 沒有數字。真正的資料在
+    transactionrateExport.jsp，回傳一串 document.writeln('...')，把裡面的
+    HTML 還原就能解析。
+
+    每一列都帶 queryhistory('USD') 標明幣別，用它定位而不是靠列的順序；
+    欄位位置從表頭自己讀出來，台新調整欄位順序也不會抓錯。
+    """
+    raw = _get(TAISHIN_URL, timeout=25)
+    parts = re.findall(r"document\.writeln\('(.*?)'\);", raw, re.S)
+    if not parts:
+        raise SourceError("台新的回應裡沒有 document.writeln，頁面結構可能改了")
+    html = "\n".join(parts).replace("\\/", "/").replace('\\"', '"').replace("\\'", "'")
+    html = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), html)
+
+    # 頁面上有多張表（左邊幣別、右邊數字），各自有表頭，
+    # 所以要挑「含有目標欄位」的那一列，不能取第一個符合的。
+    cols = None
+    for block in re.findall(r"<tr>\s*((?:<td>[^<]*</td>\s*)+)</tr>", html):
+        candidate = [c.strip() for c in re.findall(r"<td>([^<]*)</td>", block)]
+        if column in candidate:
+            cols = candidate
+            break
+    if not cols:
+        raise SourceError(f"台新表頭找不到「{column}」欄，頁面結構可能改了")
+    idx = cols.index(column)
+
+    row = re.search(
+        r"<tr>((?:(?!</tr>).)*?queryhistory\('" + re.escape(currency) + r"'\)(?:(?!</tr>).)*?)</tr>",
+        html, re.S)
+    if not row:
+        raise SourceError(f"台新牌告裡找不到 {currency}")
+    cells = re.findall(r'<td class="currency">(.*?)</td>', row.group(1), re.S)
+    if idx >= len(cells):
+        raise SourceError(f"台新 {currency} 只有 {len(cells)} 個數字，取不到第 {idx+1} 欄")
+    value = _money(re.sub(r"<[^>]+>", "", cells[idx]))
+
+    stamp = re.search(r"更新時間\s*[:：]\s*(\d{4})/(\d{2})/(\d{2})\s+(\d{2}:\d{2}:\d{2})", html)
+    return (
+        {
+            "price": value,
+            "currency": currency,
+            "column": column,
+            "columns": cols,
+            "kind": f"台新{column}",
+            "date": f"{stamp.group(1)}-{stamp.group(2)}-{stamp.group(3)}" if stamp else None,
+            "time": stamp.group(4) if stamp else None,
+        },
+        {"source": f"台新銀行 {column}", "url": TAISHIN_URL},
+    )
+
+
 def fetch_usdtwd_live():
+    """USD/TWD 的「現在」用台新即期賣出 —— 那才是實際要換美金時付的價格。
+
+    中間價（fetch_usdtwd_mid）留給走勢圖，因為只有它有現成的歷史序列。
+    兩者基準不同，實測台新賣出比中間價高約 0.3%，卡片上有標明。
+    """
+    return fetch_taishin_rate("USD", "即期賣出")
+
+
+def fetch_usdtwd_mid():
     d = json.loads(_get(f"{FX_LIVE_URL}?base=USD&currencies=TWD", timeout=15))
     rate = (d.get("rates") or {}).get("TWD")
     if not rate:

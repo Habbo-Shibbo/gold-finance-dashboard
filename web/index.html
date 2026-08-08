@@ -599,7 +599,7 @@ function render() {
   m.appendChild(metricBlock("voo", "VOO", S.voo, v => usd(v), "S&P 500 ETF", THREE, true));
   m.appendChild(metricBlock("fx", "CAD / TWD", S.fx_cadtwd, v => nf(v, 4), "加拿大央行", THREE, true));
   m.appendChild(metricBlock("usdtwd", "USD / TWD", S.fx_usdtwd, v => nf(v, 4),
-                            "加拿大央行 USD/CAD × CAD/TWD", THREE, true));
+                            "現價：台新即期賣出 · 走勢：央行中間價", THREE, true));
 
   /* 本益比：兩邊都沒有公開歷史序列，只能從今天累積，所以圖表等資料夠了才出現 */
   const peBox = document.getElementById("pe");
